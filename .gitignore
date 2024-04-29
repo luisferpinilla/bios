@@ -165,3 +165,6 @@ data/*.xlsm
 reports/*.xlsx
 reports/*.xlsm 
 *.lp
+
+borrame.*
+deleteme.*

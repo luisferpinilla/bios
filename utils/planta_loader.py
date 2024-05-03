@@ -554,7 +554,7 @@ def _obtener_costos_corte_almacenamiento(matriz: list, periodos:list, dataframes
         
 
             
-def _obtener_matriz_fletes(matriz:list, periodos:list, dataframes:dict, cap_camion=34000):
+def _obtener_matriz_fletes_intercompany(matriz:list, periodos:list, dataframes:dict, cap_camion=34000):
     
     fletes = dataframes['fletes_cop_per_kg'].copy()
     
@@ -562,7 +562,13 @@ def _obtener_matriz_fletes(matriz:list, periodos:list, dataframes:dict, cap_cami
     
     importaciones = list(set(importaciones))
     
-    plantas = list(fletes.drop(columns=['puerto', 'operador', 'ingrediente']).columns)
+    empresas = dataframes['plantas'].copy()
+    
+    empresas = {empresas.loc[i]['planta']:empresas.loc[i]['empresa'] for i in empresas.index}
+    
+    intercompanies = dataframes['venta_entre_empresas'].copy().set_index('origen')
+    
+    
     
     for importacion in importaciones:
                 
@@ -570,7 +576,7 @@ def _obtener_matriz_fletes(matriz:list, periodos:list, dataframes:dict, cap_cami
    
         if flete.shape[0]>0:
             
-            for planta in plantas:
+            for planta in empresas.keys():
                 
                 flete_kg = dict()
             
@@ -581,22 +587,26 @@ def _obtener_matriz_fletes(matriz:list, periodos:list, dataframes:dict, cap_cami
                 flete_kg['operador'] = importacion[4]  
                 flete_kg['varaible'] = f'costo_flete_kg_{planta}'
                 
-                flete_camion = dict()
+                intercompany = dict()
             
-                flete_camion['ingrediente'] =  importacion[0] 
-                flete_camion['importacion'] = importacion[1]
-                flete_camion['empresa'] = importacion[2]   
-                flete_camion['puerto'] = importacion[3]
-                flete_camion['operador'] = importacion[4]  
-                flete_camion['varaible'] = f'costo_flete_camion_{planta}'
-        
+                intercompany['ingrediente'] =  importacion[0] 
+                intercompany['importacion'] = importacion[1]
+                intercompany['empresa'] = importacion[2]   
+                intercompany['puerto'] = importacion[3]
+                intercompany['operador'] = importacion[4]  
+                intercompany['varaible'] = f'costo_intercompany_{planta}'
+                
+                
                 for periodo in periodos:
                                    
                     flete_kg[periodo] = flete.iloc[0][planta]
-                    flete_camion[periodo] = cap_camion*flete.iloc[0][planta]
+                    intercompany[periodo] = intercompanies.loc[importacion[2]][empresas[planta]]
+
                     
                 matriz.append(flete_kg)
-                matriz.append(flete_camion)
+                matriz.append(intercompany)
+                
+    
             
             
             
@@ -612,7 +622,7 @@ def obtener_matriz_importaciones(periodos:list, dataframes:dict):
     
     _obtener_costos_corte_almacenamiento(matriz, periodos, dataframes)
     
-    _obtener_matriz_fletes(matriz,periodos,dataframes)
+    _obtener_matriz_fletes_intercompany(matriz,periodos,dataframes)
     
     df = pd.DataFrame(matriz)
    
@@ -623,6 +633,8 @@ def obtener_matriz_importaciones(periodos:list, dataframes:dict):
     # totalizar el valor del despacho de un camion hasta planta
     # calcular el invenario de las cargas
     # Colocar el objetivo de inventario al final del periodo
+    # Eliminar cargas con inventario por debajo de capacidad de camion
+    # Inicializar en 0 las varibles de transporte hacia planta
     # Alimentar el modelo
     # Resolver el modelo
     # Crear visualizacion en streamlit    

@@ -198,7 +198,7 @@ def __generar_safety_stock(matriz: list, periodos: list, dataframes: pd.DataFram
                 matriz.append(dato)
 
 
-def __completar_inventario(matriz: list):
+def __completar_inventario_planta(matriz: list):
 
     print('calculando inventarios')
 
@@ -336,11 +336,7 @@ def validar_capacidad_almacenamiento(df: pd.DataFrame, periodos: list):
     df['validaciones'] = df.apply(validate, axis=1)
 
 
-def obtener_matriz_plantas(bios_input_file: str) -> pd.DataFrame:
-
-    dataframes = __leer_archivo(bios_input_file=bios_input_file)
-
-    periodos = __generar_periodos(dataframes)
+def obtener_matriz_plantas(dataframes:dict, periodos:list) -> pd.DataFrame:
 
     matriz = __generar_consumo(dataframes, periodos)
 
@@ -350,283 +346,366 @@ def obtener_matriz_plantas(bios_input_file: str) -> pd.DataFrame:
 
     __generar_safety_stock(matriz, periodos, dataframes)
 
-    __completar_inventario(matriz)
+    __completar_inventario_planta(matriz)
 
     df = _generar_dataframe(matriz)
 
     return df
 
 
-def _obtener_inventarios_puerto(periodos:list, dataframes:dict):
+def _obtener_inventarios_puerto(periodos: list, dataframes: dict):
 
     periodo_anterior = periodos[0] - timedelta(days=1)
-    
+
     inventario_puerto = dataframes['inventario_puerto'].copy()
 
     matriz = list()
 
     for i in inventario_puerto.index:
-              
-        ingrediente = inventario_puerto.loc[i]['ingrediente'] 
-        importacion = inventario_puerto.loc[i]['importacion']   
-        empresa = inventario_puerto.loc[i]['empresa']  
-        puerto = inventario_puerto.loc[i]['puerto']   
-        operador = inventario_puerto.loc[i]['operador']   
+
+        ingrediente = inventario_puerto.loc[i]['ingrediente']
+        importacion = inventario_puerto.loc[i]['importacion']
+        empresa = inventario_puerto.loc[i]['empresa']
+        puerto = inventario_puerto.loc[i]['puerto']
+        operador = inventario_puerto.loc[i]['operador']
         valor_cif = inventario_puerto.loc[i]['valor_cif_kg']
-        cantidad_kg = inventario_puerto.loc[i]['cantidad_kg'] 
-         
+        cantidad_kg = inventario_puerto.loc[i]['cantidad_kg']
+
         cif = dict()
-        cif['ingrediente'] =  ingrediente 
-        cif['importacion'] = importacion   
-        cif['empresa'] = empresa   
-        cif['puerto'] = puerto   
-        cif['operador'] = operador        
-        cif['variable'] = 'valor_cif'        
-        
+        cif['ingrediente'] = ingrediente
+        cif['importacion'] = importacion
+        cif['empresa'] = empresa
+        cif['puerto'] = puerto
+        cif['operador'] = operador
+        cif['variable'] = 'valor_cif'
+
         for periodo in periodos:
             cif[periodo] = valor_cif
-        
+
         matriz.append(cif)
-    
-   
+
         dato = dict()
-        
-        dato['ingrediente'] = ingrediente   
+
+        dato['ingrediente'] = ingrediente
         dato['importacion'] = importacion
-        dato['empresa'] =  empresa
+        dato['empresa'] = empresa
         dato['puerto'] = puerto
         dato['operador'] = operador
         dato['variable'] = 'inventario'
-        dato[periodo_anterior] = cantidad_kg  
-    
-        matriz.append(dato)    
+        dato[periodo_anterior] = cantidad_kg
+
+        matriz.append(dato)
 
     return matriz
 
 
-def _obtener_transitos_a_puerto(matriz: list, periodos:list, dataframes:dict, capacidad_recepcion=5000000):
-    
+def _obtener_transitos_a_puerto(matriz: list, periodos: list, dataframes: dict, capacidad_recepcion=5000000):
+
     transitos = dataframes['tto_puerto'].copy()
-    
+
     costos_portuarios = dataframes['costos_operacion_portuaria'].copy()
-    
+
     transitos['fecha_llegada'] = pd.to_datetime(transitos['fecha_llegada'])
-    
-        
+
     for i in transitos.index:
-        
-        ingrediente = transitos.loc[i]['ingrediente'] 
-        importacion = transitos.loc[i]['importacion'] 
+
+        ingrediente = transitos.loc[i]['ingrediente']
+        importacion = transitos.loc[i]['importacion']
         empresa = transitos.loc[i]['empresa']
-        puerto = transitos.loc[i]['puerto']  
+        puerto = transitos.loc[i]['puerto']
         operador = transitos.loc[i]['operador']
-        valor_cif =  transitos.loc[i]['valor_kg']
+        valor_cif = transitos.loc[i]['valor_kg']
         arrival_date = transitos.loc[i]['fecha_llegada']
         cantidad_llegada = float(transitos.loc[i]['cantidad_kg'])
-        
-        costo_bodegaje_df = costos_portuarios[(costos_portuarios['puerto']==puerto)&(costos_portuarios['operador']==operador)&(costos_portuarios['ingrediente']==ingrediente)&(costos_portuarios['tipo_operacion']=='bodega')]
-        
-        costo_directo_df = costos_portuarios[(costos_portuarios['puerto']==puerto)&(costos_portuarios['operador']==operador)&(costos_portuarios['ingrediente']==ingrediente)&(costos_portuarios['tipo_operacion']=='directo')]
-        
-        
-        if costo_bodegaje_df.shape[0]>0:
+
+        costo_bodegaje_df = costos_portuarios[(costos_portuarios['puerto'] == puerto) & (costos_portuarios['operador'] == operador) & (
+            costos_portuarios['ingrediente'] == ingrediente) & (costos_portuarios['tipo_operacion'] == 'bodega')]
+
+        costo_directo_df = costos_portuarios[(costos_portuarios['puerto'] == puerto) & (costos_portuarios['operador'] == operador) & (
+            costos_portuarios['ingrediente'] == ingrediente) & (costos_portuarios['tipo_operacion'] == 'directo')]
+
+        if costo_bodegaje_df.shape[0] > 0:
             costo_bodegaje = costo_bodegaje_df.iloc[0]['valor_kg']
         else:
             costo_bodegaje = 0.0
-        
-        if costo_directo_df.shape[0]>0:
+
+        if costo_directo_df.shape[0] > 0:
             costo_directo = costo_directo_df.iloc[0]['valor_kg']
         else:
             costo_directo = 0.0
-        
+
         llegadas = dict()
-            
-        llegadas['ingrediente'] =  ingrediente 
-        llegadas['importacion'] = importacion   
-        llegadas['empresa'] = empresa   
-        llegadas['puerto'] = puerto   
-        llegadas['operador'] = operador         
+
+        llegadas['ingrediente'] = ingrediente
+        llegadas['importacion'] = importacion
+        llegadas['empresa'] = empresa
+        llegadas['puerto'] = puerto
+        llegadas['operador'] = operador
         llegadas['variable'] = 'llegadas'
-        
+
         inventario = dict()
-        inventario['ingrediente'] =  ingrediente 
-        inventario['importacion'] = importacion   
-        inventario['empresa'] = empresa   
-        inventario['puerto'] = puerto   
-        inventario['operador'] = operador  
+        inventario['ingrediente'] = ingrediente
+        inventario['importacion'] = importacion
+        inventario['empresa'] = empresa
+        inventario['puerto'] = puerto
+        inventario['operador'] = operador
         inventario['variable'] = 'inventario'
         cant_inventario = 0.0
-        
-        
+
         directo = dict()
-        directo['ingrediente'] =  ingrediente 
-        directo['importacion'] = importacion   
-        directo['empresa'] = empresa   
-        directo['puerto'] = puerto   
-        directo['operador'] = operador        
+        directo['ingrediente'] = ingrediente
+        directo['importacion'] = importacion
+        directo['empresa'] = empresa
+        directo['puerto'] = puerto
+        directo['operador'] = operador
         directo['variable'] = 'costo_directo_por_kg'
 
         cif = dict()
-        cif['ingrediente'] =  ingrediente 
-        cif['importacion'] = importacion   
-        cif['empresa'] = empresa   
-        cif['puerto'] = puerto   
-        cif['operador'] = operador        
-        cif['variable'] = 'valor_cif'        
-        
+        cif['ingrediente'] = ingrediente
+        cif['importacion'] = importacion
+        cif['empresa'] = empresa
+        cif['puerto'] = puerto
+        cif['operador'] = operador
+        cif['variable'] = 'valor_cif'
+
         for periodo in periodos:
             cif[periodo] = valor_cif
-        
+
         matriz.append(cif)
-        
-        
-        while cantidad_llegada >capacidad_recepcion:
-            
+
+        while cantidad_llegada > capacidad_recepcion:
+
             llegadas[arrival_date] = capacidad_recepcion
-            
+
             cant_inventario += capacidad_recepcion
             inventario[arrival_date] = cant_inventario
-            
-            directo[arrival_date] = costo_directo        
-            
+
+            directo[arrival_date] = costo_directo
+
             cantidad_llegada -= capacidad_recepcion
             arrival_date = arrival_date + timedelta(days=1)
 
-        
         if cantidad_llegada > 0:
-            
+
             llegadas[arrival_date] = cantidad_llegada
-            
+
             cant_inventario += cantidad_llegada
             inventario[arrival_date] = cant_inventario
-            
+
         matriz.append(llegadas)
         matriz.append(inventario)
-        
+
         # Agregar costo de bodegaje
-        
+
         costo_bodegaje_por_kg = dict()
-        
-        costo_bodegaje_por_kg['ingrediente'] =  ingrediente 
-        costo_bodegaje_por_kg['importacion'] = importacion   
-        costo_bodegaje_por_kg['empresa'] = empresa   
-        costo_bodegaje_por_kg['puerto'] = puerto   
-        costo_bodegaje_por_kg['operador'] = operador         
+
+        costo_bodegaje_por_kg['ingrediente'] = ingrediente
+        costo_bodegaje_por_kg['importacion'] = importacion
+        costo_bodegaje_por_kg['empresa'] = empresa
+        costo_bodegaje_por_kg['puerto'] = puerto
+        costo_bodegaje_por_kg['operador'] = operador
         costo_bodegaje_por_kg['variable'] = 'costo_bodegaje_por_kg'
         costo_bodegaje_por_kg[arrival_date] = costo_bodegaje
-        
+
         matriz.append(costo_bodegaje_por_kg)
-               
+
         directo['variable'] = 'costo_directo_por_kg'
         directo[arrival_date] = costo_directo
-        
-        matriz.append(directo)
-        
 
-def _obtener_costos_corte_almacenamiento(matriz: list, periodos:list, dataframes:dict):
-    
-    costos_almacenamiento_df = dataframes['costos_almacenamiento_cargas'].copy()
-    
-    costos_almacenamiento_df['fecha_corte'] = pd.to_datetime(costos_almacenamiento_df['fecha_corte']) 
-    
- 
+        matriz.append(directo)
+
+
+def _obtener_costos_corte_almacenamiento(matriz: list, periodos: list, dataframes: dict):
+
+    costos_almacenamiento_df = dataframes['costos_almacenamiento_cargas'].copy(
+    )
+
+    costos_almacenamiento_df['fecha_corte'] = pd.to_datetime(
+        costos_almacenamiento_df['fecha_corte'])
+
     for i in costos_almacenamiento_df.index:
-        
-        ingrediente = costos_almacenamiento_df.loc[i]['ingrediente'] 
-        importacion = costos_almacenamiento_df.loc[i]['importacion'] 
+
+        ingrediente = costos_almacenamiento_df.loc[i]['ingrediente']
+        importacion = costos_almacenamiento_df.loc[i]['importacion']
         empresa = costos_almacenamiento_df.loc[i]['empresa']
-        puerto = costos_almacenamiento_df.loc[i]['puerto']  
+        puerto = costos_almacenamiento_df.loc[i]['puerto']
         operador = costos_almacenamiento_df.loc[i]['operador']
         fecha_corte = costos_almacenamiento_df.loc[i]['fecha_corte']
         costo = costos_almacenamiento_df.loc[i]['valor_kg']
-          
+
         costo_almacenamiento_por_kg = dict()
-    
-        costo_almacenamiento_por_kg['ingrediente'] =  ingrediente 
-        costo_almacenamiento_por_kg['importacion'] = importacion   
-        costo_almacenamiento_por_kg['empresa'] = empresa   
-        costo_almacenamiento_por_kg['puerto'] = puerto   
-        costo_almacenamiento_por_kg['operador'] = operador     
+
+        costo_almacenamiento_por_kg['ingrediente'] = ingrediente
+        costo_almacenamiento_por_kg['importacion'] = importacion
+        costo_almacenamiento_por_kg['empresa'] = empresa
+        costo_almacenamiento_por_kg['puerto'] = puerto
+        costo_almacenamiento_por_kg['operador'] = operador
         costo_almacenamiento_por_kg['variable'] = 'costo_almacenamiento_por_kg'
         costo_almacenamiento_por_kg[fecha_corte] = costo
-        
+
         matriz.append(costo_almacenamiento_por_kg)
-        
 
-            
-def _obtener_matriz_fletes_intercompany(matriz:list, periodos:list, dataframes:dict, cap_camion=34000):
-    
+
+def _obtener_matriz_fletes_intercompany(matriz: list, periodos: list, dataframes: dict, cap_camion=34000):
+
     fletes = dataframes['fletes_cop_per_kg'].copy()
-    
-    importaciones = [(i['ingrediente'], i['importacion'], i['empresa'], i['puerto'],i['operador']) for i in matriz]
-    
-    importaciones = list(set(importaciones))
-    
-    empresas = dataframes['plantas'].copy()
-    
-    empresas = {empresas.loc[i]['planta']:empresas.loc[i]['empresa'] for i in empresas.index}
-    
-    intercompanies = dataframes['venta_entre_empresas'].copy().set_index('origen')
-    
-    
-    
-    for importacion in importaciones:
-                
-        flete = fletes[(fletes['ingrediente']==importacion[0]) & (fletes['puerto']==importacion[3]) & (fletes['operador']==importacion[4])]
-   
-        if flete.shape[0]>0:
-            
-            for planta in empresas.keys():
-                
-                flete_kg = dict()
-            
-                flete_kg['ingrediente'] =  importacion[0] 
-                flete_kg['importacion'] = importacion[1]
-                flete_kg['empresa'] = importacion[2]   
-                flete_kg['puerto'] = importacion[3]
-                flete_kg['operador'] = importacion[4]  
-                flete_kg['variable'] = f'costo_flete_kg_{planta}'
-                
-                intercompany = dict()
-            
-                intercompany['ingrediente'] =  importacion[0] 
-                intercompany['importacion'] = importacion[1]
-                intercompany['empresa'] = importacion[2]   
-                intercompany['puerto'] = importacion[3]
-                intercompany['operador'] = importacion[4]  
-                intercompany['variable'] = f'costo_intercompany_{planta}'
-                
-                
-                for periodo in periodos:
-                                   
-                    flete_kg[periodo] = flete.iloc[0][planta]
-                    intercompany[periodo] = intercompanies.loc[importacion[2]][empresas[planta]]
 
-                    
+    importaciones = [(i['ingrediente'], i['importacion'],
+                      i['empresa'], i['puerto'], i['operador']) for i in matriz]
+
+    importaciones = list(set(importaciones))
+
+    empresas = dataframes['plantas'].copy()
+
+    empresas = {empresas.loc[i]['planta']: empresas.loc[i]
+                ['empresa'] for i in empresas.index}
+
+    intercompanies = dataframes['venta_entre_empresas'].copy(
+    ).set_index('origen')
+
+    for importacion in importaciones:
+
+        flete = fletes[(fletes['ingrediente'] == importacion[0]) & (
+            fletes['puerto'] == importacion[3]) & (fletes['operador'] == importacion[4])]
+
+        if flete.shape[0] > 0:
+
+            for planta in empresas.keys():
+
+                flete_kg = dict()
+
+                flete_kg['ingrediente'] = importacion[0]
+                flete_kg['importacion'] = importacion[1]
+                flete_kg['empresa'] = importacion[2]
+                flete_kg['puerto'] = importacion[3]
+                flete_kg['operador'] = importacion[4]
+                flete_kg['variable'] = f'costo_flete_kg_{planta}'
+
+                intercompany = dict()
+
+                intercompany['ingrediente'] = importacion[0]
+                intercompany['importacion'] = importacion[1]
+                intercompany['empresa'] = importacion[2]
+                intercompany['puerto'] = importacion[3]
+                intercompany['operador'] = importacion[4]
+                intercompany['variable'] = f'costo_intercompany_{planta}'
+
+                for periodo in periodos:
+
+                    flete_kg[periodo] = flete.iloc[0][planta]
+                    intercompany[periodo] = intercompanies.loc[importacion[2]
+                                                               ][empresas[planta]]
+
                 matriz.append(flete_kg)
                 matriz.append(intercompany)
-                
-    
-            
-            
-            
-            
-        
-        
 
-def obtener_matriz_importaciones(periodos:list, dataframes:dict):
+
+def __completar_inventario_cargas(matriz: list):
+
+    print('calculando inventarios')
+
+    df = _generar_dataframe(matriz)
+
+    fixed_columns = ['planta', 'ingrediente', 'variable']
+
+    per = [x for x in df.drop(columns=fixed_columns).columns]
+
+    per = sorted(per)
+
+    # Llenar el inventario inicial
+
+    plantas = list(df['planta'].unique())
+
+    ingredientes = list(df['ingrediente'].unique())
+
+    for planta in tqdm(plantas):
+        for ingrediente in ingredientes:
+
+            consumo = df[(df['planta'] == planta) & (
+                df['ingrediente'] == ingrediente) & (df['variable'] == 'consumo')].copy()
+            llegadas_planeadas = df[(df['planta'] == planta) & (
+                df['ingrediente'] == ingrediente) & (df['variable'] == 'llegadas_planeadas')].copy()
+            inventario = df[(df['planta'] == planta) & (
+                df['ingrediente'] == ingrediente) & (df['variable'] == 'inventario')].copy()
+
+            # Si hay datos de inventario vas a calcula los inventarios en el tiempo
+            if inventario.shape[0] > 0:
+                inventario_t = inventario.iloc[0][per[0]]
+
+                for periodo in per[1:]:
+
+                    if consumo.shape[0] > 0:
+                        consumo_t = consumo.iloc[0][periodo]
+                    else:
+                        consumo_t = 0.0
+
+                    if llegadas_planeadas.shape[0] > 0:
+                        llegadas_t = llegadas_planeadas.iloc[0][periodo]
+                    else:
+                        llegadas_t = 0.0
+
+                    inventario_t = inventario_t + llegadas_t - consumo_t
+
+                    if inventario_t >= 0:
+                        backorder_t = 0.0
+                    else:
+                        backorder_t = -1*inventario_t
+                        inventario_t = 0.0
+
+                    dato = {
+                        'planta': planta,
+                        'ingrediente': ingrediente,
+                        'variable': 'inventario',
+                        periodo: inventario_t
+                    }
+                    matriz.append(dato)
+
+                    dato = {
+                        'planta': planta,
+                        'ingrediente': ingrediente,
+                        'variable': 'backorder',
+                        periodo: backorder_t
+                    }
+
+                    matriz.append(dato)
+
+            else:  # Si no tienes inventarios, vas a llenar inventarios en el tiempo en cero.
+                for periodo in per:
+
+                    dato = {
+                        'planta': planta,
+                        'ingrediente': ingrediente,
+                        'variable': 'inventario',
+                        periodo: 0.0
+                    }
+                    matriz.append(dato)
+
+                    dato = {
+                        'planta': planta,
+                        'ingrediente': ingrediente,
+                        'variable': 'backorder',
+                        periodo: 0.0
+                    }
+
+                    matriz.append(dato)
+
+
+def obtener_matriz_importaciones(dataframes: dict, periodos:list):
+
     
+
+    matriz = __generar_consumo(dataframes, periodos)
+
     matriz = _obtener_inventarios_puerto(periodos, dataframes)
-    
+
     _obtener_transitos_a_puerto(matriz, periodos, dataframes)
-    
+
     _obtener_costos_corte_almacenamiento(matriz, periodos, dataframes)
-    
-    _obtener_matriz_fletes_intercompany(matriz,periodos,dataframes)
-    
+
+    _obtener_matriz_fletes_intercompany(matriz, periodos, dataframes)
+
     df = pd.DataFrame(matriz)
-   
-    
+
     # Falta:
     # Totalizar el valor del mantenimiento de la carga en puerto
     # totalizar el valor del despacho de un camion hasta planta
@@ -636,13 +715,21 @@ def obtener_matriz_importaciones(periodos:list, dataframes:dict):
     # Inicializar en 0 las varibles de transporte hacia planta
     # Alimentar el modelo
     # Resolver el modelo
-    # Crear visualizacion en streamlit    
-    
+    # Crear visualizacion en streamlit
+
 
 if __name__ == '__main__':
 
     bios_input_file = 'data/0_model_template_2204.xlsm'
+    
+    dataframes = __leer_archivo(bios_input_file=bios_input_file)
+    
+    periodos = __generar_periodos(dataframes)
 
-    obtener_matriz_plantas(bios_input_file)
+    plantas_df = obtener_matriz_plantas(dataframes, periodos)
+    
+    cargas_df = obtener_matriz_importaciones(dataframes, periodos)
+    
+    
 
     print('finalizado')

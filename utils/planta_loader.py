@@ -381,7 +381,7 @@ def _obtener_inventarios_puerto(periodos:list, dataframes:dict):
         cif['empresa'] = empresa   
         cif['puerto'] = puerto   
         cif['operador'] = operador        
-        cif['varaible'] = 'valor_cif'        
+        cif['variable'] = 'valor_cif'        
         
         for periodo in periodos:
             cif[periodo] = valor_cif
@@ -396,7 +396,7 @@ def _obtener_inventarios_puerto(periodos:list, dataframes:dict):
         dato['empresa'] =  empresa
         dato['puerto'] = puerto
         dato['operador'] = operador
-        dato['varaible'] = 'inventario'
+        dato['variable'] = 'inventario'
         dato[periodo_anterior] = cantidad_kg  
     
         matriz.append(dato)    
@@ -446,7 +446,7 @@ def _obtener_transitos_a_puerto(matriz: list, periodos:list, dataframes:dict, ca
         llegadas['empresa'] = empresa   
         llegadas['puerto'] = puerto   
         llegadas['operador'] = operador         
-        llegadas['varaible'] = 'llegadas'
+        llegadas['variable'] = 'llegadas'
         
         inventario = dict()
         inventario['ingrediente'] =  ingrediente 
@@ -454,7 +454,7 @@ def _obtener_transitos_a_puerto(matriz: list, periodos:list, dataframes:dict, ca
         inventario['empresa'] = empresa   
         inventario['puerto'] = puerto   
         inventario['operador'] = operador  
-        inventario['varaible'] = 'inventario'
+        inventario['variable'] = 'inventario'
         cant_inventario = 0.0
         
         
@@ -464,7 +464,7 @@ def _obtener_transitos_a_puerto(matriz: list, periodos:list, dataframes:dict, ca
         directo['empresa'] = empresa   
         directo['puerto'] = puerto   
         directo['operador'] = operador        
-        directo['varaible'] = 'costo_directo_por_kg'
+        directo['variable'] = 'costo_directo_por_kg'
 
         cif = dict()
         cif['ingrediente'] =  ingrediente 
@@ -472,7 +472,7 @@ def _obtener_transitos_a_puerto(matriz: list, periodos:list, dataframes:dict, ca
         cif['empresa'] = empresa   
         cif['puerto'] = puerto   
         cif['operador'] = operador        
-        cif['varaible'] = 'valor_cif'        
+        cif['variable'] = 'valor_cif'        
         
         for periodo in periodos:
             cif[periodo] = valor_cif
@@ -512,12 +512,12 @@ def _obtener_transitos_a_puerto(matriz: list, periodos:list, dataframes:dict, ca
         costo_bodegaje_por_kg['empresa'] = empresa   
         costo_bodegaje_por_kg['puerto'] = puerto   
         costo_bodegaje_por_kg['operador'] = operador         
-        costo_bodegaje_por_kg['varaible'] = 'costo_bodegaje_por_kg'
+        costo_bodegaje_por_kg['variable'] = 'costo_bodegaje_por_kg'
         costo_bodegaje_por_kg[arrival_date] = costo_bodegaje
         
         matriz.append(costo_bodegaje_por_kg)
                
-        directo['varaible'] = 'costo_directo_por_kg'
+        directo['variable'] = 'costo_directo_por_kg'
         directo[arrival_date] = costo_directo
         
         matriz.append(directo)
@@ -547,7 +547,7 @@ def _obtener_costos_corte_almacenamiento(matriz: list, periodos:list, dataframes
         costo_almacenamiento_por_kg['empresa'] = empresa   
         costo_almacenamiento_por_kg['puerto'] = puerto   
         costo_almacenamiento_por_kg['operador'] = operador     
-        costo_almacenamiento_por_kg['varaible'] = 'costo_almacenamiento_por_kg'
+        costo_almacenamiento_por_kg['variable'] = 'costo_almacenamiento_por_kg'
         costo_almacenamiento_por_kg[fecha_corte] = costo
         
         matriz.append(costo_almacenamiento_por_kg)
@@ -585,7 +585,7 @@ def _obtener_matriz_fletes_intercompany(matriz:list, periodos:list, dataframes:d
                 flete_kg['empresa'] = importacion[2]   
                 flete_kg['puerto'] = importacion[3]
                 flete_kg['operador'] = importacion[4]  
-                flete_kg['varaible'] = f'costo_flete_kg_{planta}'
+                flete_kg['variable'] = f'costo_flete_kg_{planta}'
                 
                 intercompany = dict()
             
@@ -594,7 +594,7 @@ def _obtener_matriz_fletes_intercompany(matriz:list, periodos:list, dataframes:d
                 intercompany['empresa'] = importacion[2]   
                 intercompany['puerto'] = importacion[3]
                 intercompany['operador'] = importacion[4]  
-                intercompany['varaible'] = f'costo_intercompany_{planta}'
+                intercompany['variable'] = f'costo_intercompany_{planta}'
                 
                 
                 for periodo in periodos:
@@ -628,7 +628,6 @@ def obtener_matriz_importaciones(periodos:list, dataframes:dict):
    
     
     # Falta:
-    # colocar valor intercompany a cada planta
     # Totalizar el valor del mantenimiento de la carga en puerto
     # totalizar el valor del despacho de un camion hasta planta
     # calcular el invenario de las cargas

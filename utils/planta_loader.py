@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from utils.asignador_capacidad import AsignadorCapacidad
+from utils.objetivo_inventario import obtener_objetivo_inventario
 from tqdm import tqdm
 from datetime import datetime, timedelta
 
@@ -336,7 +337,25 @@ def validar_capacidad_almacenamiento(df: pd.DataFrame, periodos: list):
     df['validaciones'] = df.apply(validate, axis=1)
 
 
-def obtener_matriz_plantas(dataframes: dict, periodos: list) -> pd.DataFrame:
+def __obtener_matriz_objetivo_inventario(matriz:list, periodos:list, estadisticas:dict):
+    
+    objetivo_inventario_df = estadisticas['objetivo_inventario'].copy()
+    
+    objetivo_inventario_df.set_index(['planta', 'ingrediente'], inplace=True)
+    
+    for i in objetivo_inventario_df.index:
+    
+        dato = {
+            'planta': i[0],
+            'ingrediente': i[1],
+            'variable': 'objetivo_inventario',
+            periodos[-1]: objetivo_inventario_df.loc[i]['objetivo_kg']
+        }
+        matriz.append(dato)
+
+    
+
+def obtener_matriz_plantas(dataframes: dict, periodos: list, estadisticas) -> pd.DataFrame:
 
     matriz = __generar_consumo(dataframes, periodos)
 
@@ -345,12 +364,20 @@ def obtener_matriz_plantas(dataframes: dict, periodos: list) -> pd.DataFrame:
     __generar_llegadas_ya_planeadas(matriz, periodos, dataframes)
 
     __generar_safety_stock(matriz, periodos, dataframes)
+    
+    __obtener_matriz_objetivo_inventario(matriz, periodos, estadisticas)
 
     __completar_inventario_planta(matriz)
 
     df = _generar_dataframe_plantas(matriz)
 
     return df
+
+
+
+    
+    
+    
 
 ###################
 # Informacion sobre cargas
@@ -820,7 +847,6 @@ def obtener_matriz_importaciones(dataframes: dict, periodos: list):
     df = _generar_dataframe_cargas(matriz, periodos)
 
     # Falta:
-    # Colocar el objetivo de inventario al final del periodo
     # Crear matriz de despachos cruzando importaciones con plantas y periodos
     #   Identificar plantas con consumo 0 de un material y borrar todo despacho del material hacia esa planta
     #   si no hay inventario en 
@@ -833,6 +859,8 @@ def obtener_matriz_importaciones(dataframes: dict, periodos: list):
 
 
 
+
+
 if __name__ == '__main__':
 
     bios_input_file = 'data/0_model_template_2204.xlsm'
@@ -840,8 +868,10 @@ if __name__ == '__main__':
     dataframes = __leer_archivo(bios_input_file=bios_input_file)
 
     periodos = __generar_periodos(dataframes)
+    
+    estadisticas = obtener_objetivo_inventario(bios_input_file)
 
-    plantas_df = obtener_matriz_plantas(dataframes, periodos)
+    plantas_df = obtener_matriz_plantas(dataframes, periodos, estadisticas)
 
     cargas_df = obtener_matriz_importaciones(dataframes, periodos)
 
@@ -850,5 +880,6 @@ if __name__ == '__main__':
     with pd.ExcelWriter(path=bios_model_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)
         cargas_df.to_excel(writer, sheet_name='cargas', index=False)
+        estadisticas['objetivo_inventario'].to_excel(writer, sheet_name='objetivo_inventario', index=False)
 
     print('finalizado')

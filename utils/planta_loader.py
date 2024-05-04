@@ -7,7 +7,6 @@ from tqdm import tqdm
 from datetime import datetime, timedelta
 
 
-
 def _generar_dataframe_plantas(matriz: list) -> pd.DataFrame:
 
     fixed_columns = ['planta', 'ingrediente', 'variable']
@@ -95,13 +94,14 @@ def __generar_consumo(dataframes: pd.DataFrame, periodos: list) -> list():
     return matriz
 
 
-def __generar_capacidad_recepcion(dataframes: pd.DataFrame, periodos: list, matriz:list) -> list():
+def __generar_capacidad_recepcion(dataframes: pd.DataFrame, periodos: list, matriz: list) -> list():
 
     print('generando capacidad recepcion')
 
     capacidad_df = dataframes['plantas'].copy()
 
-    ingredientes = list(capacidad_df.drop(columns=['planta', 'empresa', 'operacion_minutos', 'minutos_limpieza', 'plataformas']).columns)
+    ingredientes = list(capacidad_df.drop(columns=[
+                        'planta', 'empresa', 'operacion_minutos', 'minutos_limpieza', 'plataformas']).columns)
 
     for i in tqdm(capacidad_df.index):
         total = dict()
@@ -109,31 +109,34 @@ def __generar_capacidad_recepcion(dataframes: pd.DataFrame, periodos: list, matr
         total['planta'] = capacidad_df.loc[i]['planta']
         total['ingrediente'] = "total"
         total['variable'] = 'capacidad_total_minutos_dia'
-        
+
         limpieza = dict()
         limpieza['planta'] = capacidad_df.loc[i]['planta']
         limpieza['ingrediente'] = "total"
         limpieza['variable'] = 'minutos_limpieza'
-        
+
         for periodo in periodos:
-            total[periodo] = float(capacidad_df.loc[i]['operacion_minutos']*capacidad_df.loc[i]['plataformas'])
+            total[periodo] = float(
+                capacidad_df.loc[i]['operacion_minutos']*capacidad_df.loc[i]['plataformas'])
             limpieza[periodo] = float(capacidad_df.loc[i]['minutos_limpieza'])
 
         matriz.append(total)
         matriz.append(limpieza)
-        
+
         for ingrediente in ingredientes:
-        
+
             por_ingrediente = dict()
             por_ingrediente['planta'] = capacidad_df.loc[i]['planta']
             por_ingrediente['ingrediente'] = ingrediente
             por_ingrediente['variable'] = 'minutos_por_ingrediente'
 
-            
+            for periodo in periodos:
+                por_ingrediente[periodo] = float(
+                    capacidad_df.loc[i][ingrediente])
+
             matriz.append(por_ingrediente)
 
     return matriz
-
 
 
 def __generar_capacidad_almacenamiento(matriz: list, periodos: list, dataframes: pd.DataFrame):
@@ -380,14 +383,14 @@ def validar_capacidad_almacenamiento(df: pd.DataFrame, periodos: list):
     df['validaciones'] = df.apply(validate, axis=1)
 
 
-def __obtener_matriz_objetivo_inventario(matriz:list, periodos:list, estadisticas:dict):
-    
+def __obtener_matriz_objetivo_inventario(matriz: list, periodos: list, estadisticas: dict):
+
     objetivo_inventario_df = estadisticas['objetivo_inventario'].copy()
-    
+
     objetivo_inventario_df.set_index(['planta', 'ingrediente'], inplace=True)
-    
+
     for i in objetivo_inventario_df.index:
-    
+
         dato = {
             'planta': i[0],
             'ingrediente': i[1],
@@ -396,20 +399,19 @@ def __obtener_matriz_objetivo_inventario(matriz:list, periodos:list, estadistica
         }
         matriz.append(dato)
 
-    
 
 def obtener_matriz_plantas(dataframes: dict, periodos: list, estadisticas) -> pd.DataFrame:
 
     matriz = __generar_consumo(dataframes, periodos)
 
     __generar_capacidad_almacenamiento(matriz, periodos, dataframes)
-    
+
     __generar_capacidad_recepcion(dataframes, periodos, matriz)
 
     __generar_llegadas_ya_planeadas(matriz, periodos, dataframes)
 
     __generar_safety_stock(matriz, periodos, dataframes)
-    
+
     __obtener_matriz_objetivo_inventario(matriz, periodos, estadisticas)
 
     __completar_inventario_planta(matriz)
@@ -418,11 +420,6 @@ def obtener_matriz_plantas(dataframes: dict, periodos: list, estadisticas) -> pd
 
     return df
 
-
-
-    
-    
-    
 
 ###################
 # Informacion sobre cargas
@@ -716,7 +713,8 @@ def __completar_inventario_cargas(matriz: list, periodos: list):
 
     df = _generar_dataframe_cargas(matriz, periodos)
 
-    fixed_columns = ['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']
+    fixed_columns = ['ingrediente', 'importacion',
+                     'empresa', 'puerto', 'operador', 'variable']
 
     per = [x for x in df.drop(columns=fixed_columns).columns]
 
@@ -727,149 +725,160 @@ def __completar_inventario_cargas(matriz: list, periodos: list):
                       i['empresa'], i['puerto'], i['operador']) for i in matriz]
 
     importaciones = list(set(importaciones))
-    
+
     df.set_index(keys=fixed_columns, inplace=True)
 
     for importacion in tqdm(importaciones):
-        
-        inventario_index = (importacion[0], importacion[1],importacion[2], importacion[3], importacion[4], 'inventario')
+
+        inventario_index = (
+            importacion[0], importacion[1], importacion[2], importacion[3], importacion[4], 'inventario')
 
         if inventario_index in df.index:
-                
+
             inventario = df.loc[inventario_index].copy()
-            
+
             periodo_anterior = periodos[0] - timedelta(days=1)
-            
+
             inventario_anterior = inventario[periodo_anterior]
-            
+
             for periodo in periodos:
-                
+
                 inventario_actual = inventario[periodo]
 
                 if inventario_anterior >= inventario_actual:
                     if inventario_anterior > 0:
-                    
+
                         dato = {
                             'ingrediente': importacion[0],
                             'importacion': importacion[1],
                             'empresa': importacion[2],
-                            'puerto':importacion[3],
-                            'operador':importacion[4],
-                            'variable':'inventario',
+                            'puerto': importacion[3],
+                            'operador': importacion[4],
+                            'variable': 'inventario',
                             periodo: inventario_anterior
                         }
-                        
-                        #print(dato)
+
+                        # print(dato)
                         matriz.append(dato)
-                    
+
                 else:
-                    
+
                     inventario_anterior = inventario_actual
-                        
-                
-                
-def __totalizar_valor_almacenamiento(matriz:list, periodos:list):
-    
+
+
+def __totalizar_valor_almacenamiento(matriz: list, periodos: list):
+
     print('totalizar el costo de almacenamiento para cada carga')
-    
+
     df = _generar_dataframe_cargas(matriz, periodos)
 
-    df = df[df['variable'].isin(['costo_almacenamiento_por_kg', 'costo_bodegaje_por_kg'])].copy()
+    df = df[df['variable'].isin(
+        ['costo_almacenamiento_por_kg', 'costo_bodegaje_por_kg'])].copy()
 
-    fixed_columns = ['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']
-    
+    fixed_columns = ['ingrediente', 'importacion',
+                     'empresa', 'puerto', 'operador', 'variable']
+
     df = df[fixed_columns + periodos].copy()
 
-    df = df.melt(id_vars=fixed_columns, value_vars=periodos, var_name='periodo', value_name='valor').copy()
+    df = df.melt(id_vars=fixed_columns, value_vars=periodos,
+                 var_name='periodo', value_name='valor').copy()
 
-    df = df.pivot_table(values='valor', 
-                        index=['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'periodo'],
+    df = df.pivot_table(values='valor',
+                        index=['ingrediente', 'importacion', 'empresa',
+                               'puerto', 'operador', 'periodo'],
                         columns='variable',
                         aggfunc='sum').fillna(0.0)
-    
+
     # Calcular costo total de almacenamiento
-    df['costo_total_almacenamiento'] = df['costo_almacenamiento_por_kg'] + df['costo_bodegaje_por_kg']
-    
+    df['costo_total_almacenamiento'] = df['costo_almacenamiento_por_kg'] + \
+        df['costo_bodegaje_por_kg']
+
     for importacion in tqdm(df.index):
-        
+
         dato = {
             'ingrediente': importacion[0],
             'importacion': importacion[1],
             'empresa': importacion[2],
-            'puerto':importacion[3],
-            'operador':importacion[4],
-            'variable':'costo_total_almacenamiento',
+            'puerto': importacion[3],
+            'operador': importacion[4],
+            'variable': 'costo_total_almacenamiento',
             importacion[5]: df.loc[importacion]['costo_total_almacenamiento']
         }
-        
-        #print(dato)
+
+        # print(dato)
         matriz.append(dato)
-        
-        
-def __totalizar_valor_despacho_por_camion(matriz:list, periodos:list, dataframes:dict, cap_camion=34000):
-    
+
+
+def __totalizar_valor_despacho_por_camion(matriz: list, periodos: list, dataframes: dict, cap_camion=34000):
+
     print('totalizar valor de despacho por camion')
-    
+
     df = _generar_dataframe_cargas(matriz, periodos)
-    
+
     # Extraer todos los posibles costos de transporte
-    lista_costos = ['valor_cif', 'costo_directo_por_kg'] + [x for x in df['variable'].unique() if 'flete' in x] + [x for x in df['variable'].unique() if 'intercompany' in x] 
+    lista_costos = ['valor_cif', 'costo_directo_por_kg'] + [x for x in df['variable'].unique(
+    ) if 'flete' in x] + [x for x in df['variable'].unique() if 'intercompany' in x]
 
     df = df[df['variable'].isin(lista_costos)].copy()
-    
+
     # Llenar el inventario inicial
     importaciones = [(i['ingrediente'], i['importacion'],
                       i['empresa'], i['puerto'], i['operador']) for i in matriz]
 
     importaciones = list(set(importaciones))
-    
+
     # Llenar lista de plantas
-    
+
     empresas = dataframes['plantas'].copy()
 
     empresas = {empresas.loc[i]['planta']: empresas.loc[i]
                 ['empresa'] for i in empresas.index}
-    
-    fixed_columns = ['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']
-    
+
+    fixed_columns = ['ingrediente', 'importacion',
+                     'empresa', 'puerto', 'operador', 'variable']
+
     df.set_index(keys=fixed_columns, inplace=True)
 
     for i in tqdm(importaciones):
-        
+
         for planta, empresa in empresas.items():
-            
+
             for periodo in periodos:
-        
-                # Costo total por camion = cap_camion * (flete + directo + valor_cif*intercompany)  
-                
-                flete_index = (i[0], i[1],i[2], i[3], i[4], f'costo_flete_kg_{planta}')   
+
+                # Costo total por camion = cap_camion * (flete + directo + valor_cif*intercompany)
+
+                flete_index = (i[0], i[1], i[2], i[3], i[4],
+                               f'costo_flete_kg_{planta}')
                 flete = df.loc[flete_index][periodo]
-                
-                directo_index = (i[0], i[1],i[2], i[3], i[4], 'costo_directo_por_kg')
+
+                directo_index = (i[0], i[1], i[2], i[3],
+                                 i[4], 'costo_directo_por_kg')
                 if directo_index in df.index:
-                    directo = df.loc[directo_index][periodo] 
+                    directo = df.loc[directo_index][periodo]
                 else:
                     directo = 0.0
-                    
-                valorcif_index = (i[0], i[1],i[2], i[3], i[4], 'valor_cif')
+
+                valorcif_index = (i[0], i[1], i[2], i[3], i[4], 'valor_cif')
                 valorcif = df.loc[valorcif_index][periodo]
-                
-                intercompany_index = (i[0], i[1],i[2], i[3], i[4], f'costo_intercompany_{planta}')
+
+                intercompany_index = (
+                    i[0], i[1], i[2], i[3], i[4], f'costo_intercompany_{planta}')
                 intercompany = df.loc[intercompany_index][periodo]
-                
-                costo_total = cap_camion * (flete + directo + valorcif*intercompany)
-                
+
+                costo_total = cap_camion * \
+                    (flete + directo + valorcif*intercompany)
+
                 dato = {
                     'ingrediente': i[0],
                     'importacion': i[1],
                     'empresa': i[2],
-                    'puerto':i[3],
-                    'operador':i[4],
-                    'variable':f'costo_total_despacho_camion_{planta}',
+                    'puerto': i[3],
+                    'operador': i[4],
+                    'variable': f'costo_total_despacho_camion_{planta}',
                     periodo: costo_total
                 }
-                
-                #print(dato)
+
+                # print(dato)
                 matriz.append(dato)
 
 
@@ -882,72 +891,74 @@ def obtener_matriz_importaciones(dataframes: dict, periodos: list):
     _obtener_costos_corte_almacenamiento(matriz, periodos, dataframes)
 
     _obtener_matriz_fletes_intercompany(matriz, periodos, dataframes)
-    
+
     __completar_inventario_cargas(matriz, periodos)
-    
+
     __totalizar_valor_almacenamiento(matriz, periodos)
-    
+
     __totalizar_valor_despacho_por_camion(matriz, periodos, dataframes)
 
     df = _generar_dataframe_cargas(matriz, periodos)
 
-    
-
     return df
 
 
-def validacion_eliminar_cargas_sin_inventario(cargas_df:pd.DataFrame, validation_list:list)->pd.DataFrame:
-    
-    df = cargas_df[cargas_df['variable']=='inventario'].copy()
-    
+def validacion_eliminar_cargas_sin_inventario(cargas_df: pd.DataFrame, validation_list: list) -> pd.DataFrame:
+
+    df = cargas_df[cargas_df['variable'] == 'inventario'].copy()
+
     df.drop(columns=['variable'], inplace=True)
 
-    df.set_index(['ingrediente', 'importacion', 'empresa', 'puerto', 'operador'], inplace=True)
+    df.set_index(['ingrediente', 'importacion', 'empresa',
+                 'puerto', 'operador'], inplace=True)
 
     df['max'] = df.apply(np.max, axis=1)
-    
-    index_to_delete = df[df['max']<34000].index
+
+    index_to_delete = df[df['max'] < 34000].index
 
     for i in index_to_delete:
-        validation_list.append({"nivel":"Advertencia", 
+        validation_list.append({"nivel": "Advertencia",
                                 "Mensaje": f"la importacion {' '.join(i)} no tiene suficiente inventario para ser despachado."
                                 })
-    
-    cargas_df['temp'] = [(cargas_df.loc[i]['ingrediente'], cargas_df.loc[i]['importacion'], cargas_df.loc[i]['empresa'], cargas_df.loc[i]['puerto'], cargas_df.loc[i]['operador']) for i in cargas_df.index]
 
-    cargas_df =  cargas_df[~cargas_df['temp'].isin(index_to_delete)].copy()
-    
+    cargas_df['temp'] = [(cargas_df.loc[i]['ingrediente'], cargas_df.loc[i]['importacion'], cargas_df.loc[i]
+                          ['empresa'], cargas_df.loc[i]['puerto'], cargas_df.loc[i]['operador']) for i in cargas_df.index]
+
+    cargas_df = cargas_df[~cargas_df['temp'].isin(index_to_delete)].copy()
+
     cargas_df.drop(columns=['temp'], inplace=True)
-    
+
     return cargas_df
 
-def validacion_eliminar_ingredientes_sin_consumo(plantas_df:pd.DataFrame, validation_list:list)->pd.DataFrame():
-    
-    df = plantas_df[plantas_df['variable']=='consumo'].copy()
+
+def validacion_eliminar_ingredientes_sin_consumo(plantas_df: pd.DataFrame, validation_list: list) -> pd.DataFrame():
+
+    df = plantas_df[plantas_df['variable'] == 'consumo'].copy()
 
     df.drop(columns=['variable'], inplace=True)
-    
+
     df.set_index(['planta', 'ingrediente'], inplace=True)
-    
+
     df['tot'] = df.apply(np.sum, axis=1)
-    
-    index_to_delete = df[df['tot']<=0].index
-    
+
+    index_to_delete = df[df['tot'] <= 0].index
+
     for i in index_to_delete:
-        validation_list.append({"nivel":"Advertencia", 
+        validation_list.append({"nivel": "Advertencia",
                                 "Mensaje": f"el manejo del ingrediente {i[1]} en la planta {i[0]} será ignorado por no tener consumo proyectado"
                                 })
-    
-    plantas_df['temp'] = [(plantas_df.loc[i]['planta'], plantas_df.loc[i]['ingrediente']) for i in plantas_df.index]
-    
-    plantas_df =  plantas_df[~plantas_df['temp'].isin(index_to_delete)].copy()
+
+    plantas_df['temp'] = [(plantas_df.loc[i]['planta'],
+                           plantas_df.loc[i]['ingrediente']) for i in plantas_df.index]
+
+    plantas_df = plantas_df[~plantas_df['temp'].isin(index_to_delete)].copy()
 
     plantas_df.drop(columns=['temp'], inplace=True)
 
     return plantas_df
 
 # Falta:
-# Crear la capacidad de recepcion de material en cada planta    
+# Crear la capacidad de recepcion de material en cada planta
 # Crear matriz de despachos cruzando importaciones con plantas y periodos
 # Inicializar en 0 las varibles de transporte hacia planta
 # Alimentar el modelo
@@ -962,7 +973,7 @@ if __name__ == '__main__':
     dataframes = __leer_archivo(bios_input_file=bios_input_file)
 
     periodos = __generar_periodos(dataframes)
-    
+
     estadisticas = obtener_objetivo_inventario(bios_input_file)
 
     plantas_df = obtener_matriz_plantas(dataframes, periodos, estadisticas)
@@ -970,17 +981,19 @@ if __name__ == '__main__':
     cargas_df = obtener_matriz_importaciones(dataframes, periodos)
 
     validation_list = list()
-    
-    cargas_df = validacion_eliminar_cargas_sin_inventario(cargas_df,validation_list)
 
+    cargas_df = validacion_eliminar_cargas_sin_inventario(
+        cargas_df, validation_list)
+
+    plantas_df = validacion_eliminar_ingredientes_sin_consumo(
+        plantas_df, validation_list)
 
     bios_model_file = bios_input_file.replace('.xlsm', '_model.xlsx')
-    
-    
 
     with pd.ExcelWriter(path=bios_model_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)
         cargas_df.to_excel(writer, sheet_name='cargas', index=False)
-        estadisticas['objetivo_inventario'].to_excel(writer, sheet_name='objetivo_inventario', index=False)
+        estadisticas['objetivo_inventario'].to_excel(
+            writer, sheet_name='objetivo_inventario', index=False)
 
     print('finalizado')

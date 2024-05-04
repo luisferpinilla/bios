@@ -2,8 +2,10 @@ import pandas as pd
 import numpy as np
 from utils.asignador_capacidad import AsignadorCapacidad
 from utils.objetivo_inventario import obtener_objetivo_inventario
+from utils.validacion import Validacion
 from tqdm import tqdm
 from datetime import datetime, timedelta
+
 
 
 def _generar_dataframe_plantas(matriz: list) -> pd.DataFrame:
@@ -846,19 +848,68 @@ def obtener_matriz_importaciones(dataframes: dict, periodos: list):
 
     df = _generar_dataframe_cargas(matriz, periodos)
 
-    # Falta:
-    # Crear matriz de despachos cruzando importaciones con plantas y periodos
-    #   Identificar plantas con consumo 0 de un material y borrar todo despacho del material hacia esa planta
-    #   si no hay inventario en 
-    # Inicializar en 0 las varibles de transporte hacia planta
-    # Alimentar el modelo
-    # Resolver el modelo
-    # Crear visualizacion en streamlit
+    
 
     return df
 
 
+def validacion_eliminar_cargas_sin_inventario(cargas_df:pd.DataFrame, validation_list:list)->pd.DataFrame:
+    
+    df = cargas_df[cargas_df['variable']=='inventario'].copy()
+    
+    df.drop(columns=['variable'], inplace=True)
 
+    df.set_index(['ingrediente', 'importacion', 'empresa', 'puerto', 'operador'], inplace=True)
+
+    df['max'] = df.apply(np.max, axis=1)
+    
+    index_to_delete = df[df['max']<34000].index
+
+    for i in index_to_delete:
+        validation_list.append({"nivel":"Advertencia", 
+                                "Mensaje": f"la importacion {' '.join(i)} no tiene suficiente inventario para ser despachado."
+                                })
+    
+    cargas_df['temp'] = [(cargas_df.loc[i]['ingrediente'], cargas_df.loc[i]['importacion'], cargas_df.loc[i]['empresa'], cargas_df.loc[i]['puerto'], cargas_df.loc[i]['operador']) for i in cargas_df.index]
+
+    cargas_df =  cargas_df[~cargas_df['temp'].isin(index_to_delete)].copy()
+    
+    cargas_df.drop(columns=['temp'], inplace=True)
+    
+    return cargas_df
+
+def validacion_eliminar_ingredientes_sin_consumo(plantas_df:pd.DataFrame, validation_list:list)->pd.DataFrame():
+    
+    df = plantas_df[plantas_df['variable']=='consumo'].copy()
+
+    df.drop(columns=['variable'], inplace=True)
+    
+    df.set_index(['planta', 'ingrediente'], inplace=True)
+    
+    df['tot'] = df.apply(np.sum, axis=1)
+    
+    index_to_delete = df[df['tot']<=0].index
+    
+    for i in index_to_delete:
+        validation_list.append({"nivel":"Advertencia", 
+                                "Mensaje": f"el manejo del ingrediente {i[1]} en la planta {i[0]} será ignorado por no tener consumo proyectado"
+                                })
+    
+    plantas_df['temp'] = [(plantas_df.loc[i]['planta'], plantas_df.loc[i]['ingrediente']) for i in plantas_df.index]
+    
+    plantas_df =  plantas_df[~plantas_df['temp'].isin(index_to_delete)].copy()
+
+    plantas_df.drop(columns=['temp'], inplace=True)
+
+    return plantas_df
+
+# Falta:
+# Crear la capacidad de recepcion de material en cada planta    
+# Crear matriz de despachos cruzando importaciones con plantas y periodos
+# Inicializar en 0 las varibles de transporte hacia planta
+# Alimentar el modelo
+# Resolver el modelo
+# Crear visualizacion en streamlit
 
 
 if __name__ == '__main__':
@@ -875,7 +926,14 @@ if __name__ == '__main__':
 
     cargas_df = obtener_matriz_importaciones(dataframes, periodos)
 
+    validation_list = list()
+    
+    cargas_df = validacion_eliminar_cargas_sin_inventario(cargas_df,validation_list)
+
+
     bios_model_file = bios_input_file.replace('.xlsm', '_model.xlsx')
+    
+    
 
     with pd.ExcelWriter(path=bios_model_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)

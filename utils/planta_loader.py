@@ -695,13 +695,113 @@ def __completar_inventario_cargas(matriz: list, periodos: list):
                     inventario_anterior = inventario_actual
                         
                 
+                
+def __totalizar_valor_almacenamiento(matriz:list, periodos:list):
+    
+    print('totalizar el costo de almacenamiento para cada carga')
+    
+    df = _generar_dataframe_cargas(matriz, periodos)
 
+    df = df[df['variable'].isin(['costo_almacenamiento_por_kg', 'costo_bodegaje_por_kg'])].copy()
 
+    fixed_columns = ['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']
+    
+    df = df[fixed_columns + periodos].copy()
+
+    df = df.melt(id_vars=fixed_columns, value_vars=periodos, var_name='periodo', value_name='valor').copy()
+
+    df = df.pivot_table(values='valor', 
+                        index=['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'periodo'],
+                        columns='variable',
+                        aggfunc='sum').fillna(0.0)
+    
+    # Calcular costo total de almacenamiento
+    df['costo_total_almacenamiento'] = df['costo_almacenamiento_por_kg'] + df['costo_bodegaje_por_kg']
+    
+    for importacion in tqdm(df.index):
+        
+        dato = {
+            'ingrediente': importacion[0],
+            'importacion': importacion[1],
+            'empresa': importacion[2],
+            'puerto':importacion[3],
+            'operador':importacion[4],
+            'variable':'costo_total_almacenamiento',
+            importacion[5]: df.loc[importacion]['costo_total_almacenamiento']
+        }
+        
+        #print(dato)
+        matriz.append(dato)
+        
+        
+def __totalizar_valor_despacho_por_camion(matriz:list, periodos:list, dataframes:dict, cap_camion=34000):
+    
+    print('totalizar valor de despacho por camion')
+    
+    df = _generar_dataframe_cargas(matriz, periodos)
+    
+    # Extraer todos los posibles costos de transporte
+    lista_costos = ['valor_cif', 'costo_directo_por_kg'] + [x for x in df['variable'].unique() if 'flete' in x] + [x for x in df['variable'].unique() if 'intercompany' in x] 
+
+    df = df[df['variable'].isin(lista_costos)].copy()
+    
+    # Llenar el inventario inicial
+    importaciones = [(i['ingrediente'], i['importacion'],
+                      i['empresa'], i['puerto'], i['operador']) for i in matriz]
+
+    importaciones = list(set(importaciones))
+    
+    # Llenar lista de plantas
+    
+    empresas = dataframes['plantas'].copy()
+
+    empresas = {empresas.loc[i]['planta']: empresas.loc[i]
+                ['empresa'] for i in empresas.index}
+    
+    fixed_columns = ['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']
+    
+    df.set_index(keys=fixed_columns, inplace=True)
+
+    for i in tqdm(importaciones):
+        
+        for planta, empresa in empresas.items():
+            
+            for periodo in periodos:
+        
+                # Costo total por camion = cap_camion * (flete + directo + valor_cif*intercompany)  
+                
+                flete_index = (i[0], i[1],i[2], i[3], i[4], f'costo_flete_kg_{planta}')   
+                flete = df.loc[flete_index][periodo]
+                
+                directo_index = (i[0], i[1],i[2], i[3], i[4], 'costo_directo_por_kg')
+                if directo_index in df.index:
+                    directo = df.loc[directo_index][periodo] 
+                else:
+                    directo = 0.0
+                    
+                valorcif_index = (i[0], i[1],i[2], i[3], i[4], 'valor_cif')
+                valorcif = df.loc[valorcif_index][periodo]
+                
+                intercompany_index = (i[0], i[1],i[2], i[3], i[4], f'costo_intercompany_{planta}')
+                intercompany = df.loc[intercompany_index][periodo]
+                
+                costo_total = cap_camion * (flete + directo + valorcif*intercompany)
+                
+                dato = {
+                    'ingrediente': i[0],
+                    'importacion': i[1],
+                    'empresa': i[2],
+                    'puerto':i[3],
+                    'operador':i[4],
+                    'variable':'costo_total_despacho_camion',
+                    periodo: costo_total
+                }
+                
+                #print(dato)
+                matriz.append(dato)
 
 
 def obtener_matriz_importaciones(dataframes: dict, periodos: list):
-
-    matriz = __generar_consumo(dataframes, periodos)
 
     matriz = _obtener_inventarios_puerto(periodos, dataframes)
 
@@ -712,14 +812,18 @@ def obtener_matriz_importaciones(dataframes: dict, periodos: list):
     _obtener_matriz_fletes_intercompany(matriz, periodos, dataframes)
     
     __completar_inventario_cargas(matriz, periodos)
+    
+    __totalizar_valor_almacenamiento(matriz, periodos)
+    
+    __totalizar_valor_despacho_por_camion(matriz, periodos, dataframes)
 
     df = _generar_dataframe_cargas(matriz, periodos)
 
     # Falta:
-    # Totalizar el valor del mantenimiento de la carga en puerto
-    # totalizar el valor del despacho de un camion hasta planta
-    # calcular el invenario de las cargas
     # Colocar el objetivo de inventario al final del periodo
+    # Generar validaciones:
+    #   Validar cargas con inventarios pordebajo de capacidad del camion
+    #   Validar cargas sin costo de almacenamiento
     # Eliminar cargas con inventario por debajo de capacidad de camion
     # Inicializar en 0 las varibles de transporte hacia planta
     # Alimentar el modelo
@@ -727,6 +831,7 @@ def obtener_matriz_importaciones(dataframes: dict, periodos: list):
     # Crear visualizacion en streamlit
 
     return df
+
 
 
 if __name__ == '__main__':

@@ -95,6 +95,47 @@ def __generar_consumo(dataframes: pd.DataFrame, periodos: list) -> list():
     return matriz
 
 
+def __generar_capacidad_recepcion(dataframes: pd.DataFrame, periodos: list, matriz:list) -> list():
+
+    print('generando capacidad recepcion')
+
+    capacidad_df = dataframes['plantas'].copy()
+
+    ingredientes = list(capacidad_df.drop(columns=['planta', 'empresa', 'operacion_minutos', 'minutos_limpieza', 'plataformas']).columns)
+
+    for i in tqdm(capacidad_df.index):
+        total = dict()
+
+        total['planta'] = capacidad_df.loc[i]['planta']
+        total['ingrediente'] = "total"
+        total['variable'] = 'capacidad_total_minutos_dia'
+        
+        limpieza = dict()
+        limpieza['planta'] = capacidad_df.loc[i]['planta']
+        limpieza['ingrediente'] = "total"
+        limpieza['variable'] = 'minutos_limpieza'
+        
+        for periodo in periodos:
+            total[periodo] = float(capacidad_df.loc[i]['operacion_minutos']*capacidad_df.loc[i]['plataformas'])
+            limpieza[periodo] = float(capacidad_df.loc[i]['minutos_limpieza'])
+
+        matriz.append(total)
+        matriz.append(limpieza)
+        
+        for ingrediente in ingredientes:
+        
+            por_ingrediente = dict()
+            por_ingrediente['planta'] = capacidad_df.loc[i]['planta']
+            por_ingrediente['ingrediente'] = ingrediente
+            por_ingrediente['variable'] = 'minutos_por_ingrediente'
+
+            
+            matriz.append(por_ingrediente)
+
+    return matriz
+
+
+
 def __generar_capacidad_almacenamiento(matriz: list, periodos: list, dataframes: pd.DataFrame):
 
     print('trabajando con unidades de almacenamiento')
@@ -362,6 +403,8 @@ def obtener_matriz_plantas(dataframes: dict, periodos: list, estadisticas) -> pd
     matriz = __generar_consumo(dataframes, periodos)
 
     __generar_capacidad_almacenamiento(matriz, periodos, dataframes)
+    
+    __generar_capacidad_recepcion(dataframes, periodos, matriz)
 
     __generar_llegadas_ya_planeadas(matriz, periodos, dataframes)
 

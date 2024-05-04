@@ -793,7 +793,7 @@ def __totalizar_valor_despacho_por_camion(matriz:list, periodos:list, dataframes
                     'empresa': i[2],
                     'puerto':i[3],
                     'operador':i[4],
-                    'variable':'costo_total_despacho_camion',
+                    'variable':f'costo_total_despacho_camion_{planta}',
                     periodo: costo_total
                 }
                 
@@ -821,10 +821,9 @@ def obtener_matriz_importaciones(dataframes: dict, periodos: list):
 
     # Falta:
     # Colocar el objetivo de inventario al final del periodo
-    # Generar validaciones:
-    #   Validar cargas con inventarios pordebajo de capacidad del camion
-    #   Validar cargas sin costo de almacenamiento
-    # Eliminar cargas con inventario por debajo de capacidad de camion
+    # Crear matriz de despachos cruzando importaciones con plantas y periodos
+    #   Identificar plantas con consumo 0 de un material y borrar todo despacho del material hacia esa planta
+    #   si no hay inventario en 
     # Inicializar en 0 las varibles de transporte hacia planta
     # Alimentar el modelo
     # Resolver el modelo

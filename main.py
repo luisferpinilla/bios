@@ -15,6 +15,7 @@ from utils.planta_loader import obtener_matriz_importaciones
 from utils.planta_loader import validacion_eliminar_cargas_sin_inventario
 from utils.planta_loader import validacion_eliminar_ingredientes_sin_consumo
 from tqdm import tqdm
+from datetime import timedelta
 import math
 import pulp as pu
 
@@ -330,8 +331,67 @@ def generar_funcion_objetivo(variables:dict, periodos:list, cargas_df:pd.DataFra
 
     
 
-def generar_res_balance_masa_cargas()->list:
-    pass
+def generar_res_balance_masa_cargas(variables:dict, periodos:list, cargas_df:pd.DataFrame)->list:
+    
+    rest_list = list()
+    
+    # Periodo anterior
+    periodo_anterior = periodos[0] - timedelta(days=1)
+    
+    cargas = cargas_df.set_index(['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']).copy()
+    
+    
+    for importacion in variables['inventario_puerto'].keys():
+        
+        i = importacion.split('_')
+        
+        inventario_inicial = cargas.loc[(i[0], i[1], i[2], i[3], i[4], 'inventario')][periodo_anterior]
+        
+        if (i[0], i[1], i[2], i[3], i[4], 'llegadas') in cargas.index:
+            llegadas = cargas.loc[(i[0], i[1], i[2], i[3], i[4], 'llegadas')][periodo_anterior]
+        else:
+            llegadas = 0.0
+            
+        rest_name = f'balance_puerto_{importacion}_{periodo_anterior.strftime("%Y%m%d")}'
+        
+        inv_al_final = variables['inventario_puerto'][importacion][periodos[0]]
+        
+        rest = (inv_al_final == inventario_inicial + llegadas, rest_name)
+        
+        rest_list.append(rest)
+        
+        for hoy in periodos[1:]:
+            
+            # Periodo anterior
+            ayer = periodos[periodos.index(hoy)-1]
+            
+            # inventario al final del periodo anterior
+            inventario_ayer = variables['inventario_puerto'][importacion][ayer]
+            
+            # inventario al final de hoy
+            inventario_hoy = variables['inventario_puerto'][importacion][hoy]
+            
+            if (i[0], i[1], i[2], i[3], i[4], 'llegadas') in cargas.index:
+                llegadas = cargas.loc[(i[0], i[1], i[2], i[3], i[4], 'llegadas')][hoy]
+            else:
+                llegadas = 0.0
+                
+            rest_name = f'balance_puerto_{importacion}_{hoy.strftime("%Y%m%d")}'
+            
+            rest = (inventario_hoy == inventario_ayer + llegadas, rest_name)
+            
+            rest_list.append(rest)
+                
+            
+            
+            
+            
+            
+            
+            
+            
+            
+    
 
 def generar_res_balance_masa_plantas()->list:
     pass
@@ -385,6 +445,9 @@ def generar_modelo(bios_input_file:str):
     
     generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
     
+    func_obj = generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
+
+    rest_balance_puerto = generar_res_balance_masa_cargas(variables, periodos, cargas_df)    
     
     
     with pd.ExcelWriter(path=bios_model_file) as writer:

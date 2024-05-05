@@ -378,20 +378,19 @@ def generar_res_balance_masa_cargas(variables:dict, periodos:list, cargas_df:pd.
                 
             rest_name = f'balance_puerto_{importacion}_{hoy.strftime("%Y%m%d")}'
             
-            rest = (inventario_hoy == inventario_ayer + llegadas, rest_name)
+            # Despachos hacia plantas
+            despachos = list()        
+            for planta, item in variables['despacho'][importacion].items():
+                if hoy in item.keys():
+                    despachos.append(item[hoy])
+                    
+            if len(despachos)>0:
+                rest = (inventario_hoy == inventario_ayer + llegadas - 34000*pu.lpSum(despachos), rest_name)
+            else:             
+                rest = (inventario_hoy == inventario_ayer + llegadas, rest_name)
             
             rest_list.append(rest)
                 
-            
-            
-            
-            
-            
-            
-            
-            
-            
-    
 
 def generar_res_balance_masa_plantas()->list:
     pass

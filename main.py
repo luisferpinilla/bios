@@ -341,8 +341,10 @@ def generar_funcion_objetivo(variables: dict, periodos: list, cargas_df: pd.Data
         for periodo, variable in values.items():
 
             costo_safety_stock_obj.append(costo_safety_stock_dia*variable)
+            
+    f_obj = costo_transporte_fobj + costo_almacenamiento_fobj + costo_backorder_obj + costo_safety_stock_obj
 
-    return costo_transporte_fobj + costo_almacenamiento_fobj + costo_backorder_obj + costo_safety_stock_obj
+    return f_obj
 
 
 def generar_res_balance_masa_cargas(variables: dict, periodos: list, cargas_df: pd.DataFrame) -> list:
@@ -541,11 +543,11 @@ def generar_modelo(bios_input_file: str):
 
     generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
 
-    func_obj = generar_Variables_safety_stock_planta(
-        variables, periodos, plantas_df)
+    func_obj = generar_funcion_objetivo(variables, periodos, cargas_df, plantas_df)
 
-    rest_balance_puerto = generar_res_balance_masa_cargas(
-        variables, periodos, cargas_df)
+    rest_balance_puerto = generar_res_balance_masa_cargas(variables, periodos, cargas_df)
+    
+    rest_balance_planta = generar_res_balance_masa_plantas(variables, periodos, plantas_df)
 
     with pd.ExcelWriter(path=bios_model_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)

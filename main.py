@@ -504,12 +504,147 @@ def generar_res_objetivo_fin_mes() -> list:
     pass
 
 
-def resolver_modelo():
-    pass
 
 
-def generar_reporte():
-    pass
+def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plantas_df:pd.DataFrame):
+    
+    
+    # Armar el modelo
+    func_obj = generar_funcion_objetivo(variables, periodos, cargas_df, plantas_df)
+
+    rest_balance_puerto = generar_res_balance_masa_cargas(variables, periodos, cargas_df)
+    
+    rest_balance_planta = generar_res_balance_masa_plantas(variables, periodos, plantas_df)
+    
+    
+    
+    problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
+
+    # Agregando funcion objetivo
+    problema += pu.lpSum(func_obj)
+    
+    # Agregando balance de masa puerto
+    for rest in rest_balance_puerto:
+        problema += rest
+    
+    # Agregando balande ce masa en planta
+    for rest in rest_balance_planta:
+        problema += rest
+       
+    # Cantidad CPU habilitadas para trabajar
+    cpu_count = max(1, os.cpu_count()-1)
+    
+    # Gap en millones de pesos
+    gap = 5000000    
+    # Tiempo máximo de detencion en minutos
+    t_limit_minutes = 20  
+        
+    print('cpu count', cpu_count)
+    print('tiempo limite', t_limit_minutes, 'minutos')
+    print('ejecutando ', len(periodos), 'periodos')
+    
+    print('GAP tolerable', gap, 'millones de pesos')
+    
+    engine = pu.PULP_CBC_CMD(
+        timeLimit=60*t_limit_minutes,
+        gapAbs=gap,
+        warmStart=True,
+        cuts=True,
+        presolve=True,
+        threads=cpu_count)
+    
+    problema.solve(solver=engine)
+
+
+
+
+
+
+def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:dict):
+    
+    # Remplazar valores en plantas_df y en cargas_df
+    print('Generando reporte:')
+    
+    columns = list(plantas_df.columns)
+    
+    print('actualizando informacion de plantas')
+    for i in tqdm(range(plantas_df.shape[0])):
+        planta = plantas_df.iloc[i]['planta']
+        ingrediente = plantas_df.iloc[i]['ingrediente']
+        variable = plantas_df.iloc[i]['variable']
+        
+        # Variables de inventario de plantas
+        if variable == 'inventario':
+            inventarios = variables['inventario_planta']
+            key = f'{planta}_{ingrediente}'
+            if key in inventarios.keys():
+                for periodo, lp_var in inventarios[key].items():
+                    nuevo_valor = lp_var.varValue
+                    plantas_df.iloc[i,columns.index(periodo)] = nuevo_valor
+    
+        # Variables de backorder de plantas
+        if variable == 'backorder':
+            inventarios = variables['backorder']
+            key = f'{planta}_{ingrediente}'
+            if key in inventarios.keys():
+                for periodo, lp_var in inventarios[key].items():
+                    nuevo_valor = lp_var.varValue
+                    plantas_df.iloc[i,columns.index(periodo)] = nuevo_valor
+    
+    # Llegadas a planta
+    print('Agregando datos de recepción al reporte de plantas')        
+    recibos = list()
+    for planta in tqdm(variables['recepcion'].keys()):
+        for ingrediente in variables['recepcion'][planta].keys():
+            for periodo in variables['recepcion'][planta][ingrediente].keys():
+                for llegada in variables['recepcion'][planta][ingrediente][periodo]:
+                    cantidad_llegada = llegada.varValue
+                    importacion = llegada.name.replace(f'despacho_{ingrediente}_', '')
+                    importacion = importacion.replace(f'_{planta}', '')
+                    importacion = importacion.replace(f'_{periodo.strftime("%Y%m%d")}', '')
+                    print(planta, importacion, periodo, cantidad_llegada)
+                    if cantidad_llegada > 0:
+                        recibos.append({'planta':planta, 
+                                        'ingrediente':ingrediente,
+                                        'variable': f'llegadas {importacion}',
+                                        periodo:cantidad_llegada*34000})
+                        
+    recibos_df = pd.DataFrame(recibos)
+    group_by = ['planta', 'ingrediente', 'variable']
+    recibos_df =  recibos_df.groupby(group_by).sum().reset_index()
+    plantas_df = pd.concat([plantas_df, recibos_df]).copy()
+    
+    
+    # Despachos de cargas
+    print('Actualizando reporte de cargas')
+    for i in tqdm(range(cargas_df.shape[0])):
+        
+        ingrediente = cargas_df.iloc[i]['ingrediente']
+        importacion = cargas_df.iloc[i]['importacion']
+        empresa = cargas_df.iloc[i]['empresa']
+        puerto = cargas_df.iloc[i]['puerto']
+        operador = cargas_df.iloc[i]['operador']
+                    
+        # Variables de inventario de cargas
+        if variable == 'inventario':
+            inventarios = variables['inventario_puerto']
+            key = f'{ingrediente}_{importacion}_{empresa}_{puerto}_{operador}'
+            if key in inventarios.keys():
+                for periodo, lp_var in inventarios[key].items():
+                    nuevo_valor = lp_var.varValue
+                    cargas_df.iloc[i,columns.index(periodo)] = nuevo_valor
+              
+    return (plantas_df, cargas_df)
+      
+
+def guardar_reporte(bios_ouput_file:str, plantas_df:pd.DataFrame, cargas_df:pd.DataFrame, estadisticas:pd.DataFrame):
+
+    print('guardando', bios_ouput_file)
+    with pd.ExcelWriter(path=bios_ouput_file) as writer:
+        plantas_df.to_excel(writer, sheet_name='plantas', index=False)
+        cargas_df.to_excel(writer, sheet_name='cargas', index=False)
+        estadisticas['objetivo_inventario'].to_excel(writer, sheet_name='objetivo_inventario', index=False)
+    print(bios_ouput_file, 'guardado exitósamente')
 
 
 def generar_modelo(bios_input_file: str):
@@ -534,7 +669,7 @@ def generar_modelo(bios_input_file: str):
     plantas_df = validacion_eliminar_ingredientes_sin_consumo(
         plantas_df, validation_list)
 
-    bios_model_file = bios_input_file.replace('.xlsm', '_model.xlsx')
+
 
     generar_variables_despacho(periodos, cargas_df, plantas_df, variables)
 
@@ -544,71 +679,24 @@ def generar_modelo(bios_input_file: str):
 
     generar_variables_backorder_planta(variables, periodos, plantas_df)
 
-    generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
-
-    func_obj = generar_funcion_objetivo(variables, periodos, cargas_df, plantas_df)
-
-    rest_balance_puerto = generar_res_balance_masa_cargas(variables, periodos, cargas_df)
+    generar_Variables_safety_stock_planta(variables, periodos, plantas_df)       
     
-    rest_balance_planta = generar_res_balance_masa_plantas(variables, periodos, plantas_df)
+    return plantas_df, cargas_df, estadisticas, periodos, variables
     
-    
-    
-    
-    
-    
-    problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
-
-    # Agregando funcion objetivo
-    problema += pu.lpSum(func_obj)
-    
-    # Agregando balance de masa puerto
-    for rest in rest_balance_puerto:
-        problema += rest
-    
-    # Agregando balande ce masa en planta
-    for rest in rest_balance_planta:
-        problema += rest
-       
-    # Cantidad CPU habilitadas para trabajar
-    cpu_count = max(1, os.cpu_count()-1)
-    
-    # Gap en millones de pesos
-    gap = 5000000    
-    # Tiempo máximo de detencion en minutos
-    t_limit_minutes = 10  
-        
-    print('cpu count', cpu_count)
-    print('tiempo limite', t_limit_minutes, 'minutos')
-    print('ejecutando ', len(periodos), 'periodos')
-    
-    print('GAP tolerable', gap, 'millones de pesos')
-    engine = pu.PULP_CBC_CMD(
-        timeLimit=60*t_limit_minutes,
-        gapAbs=gap,
-        warmStart=True,
-        cuts=True,
-        presolve=True,
-        threads=cpu_count)
-    
-    problema.solve(solver=engine)
-    
-    
-    
-    
-    
-
-    with pd.ExcelWriter(path=bios_model_file) as writer:
-        plantas_df.to_excel(writer, sheet_name='plantas', index=False)
-        cargas_df.to_excel(writer, sheet_name='cargas', index=False)
-        estadisticas['objetivo_inventario'].to_excel(
-            writer, sheet_name='objetivo_inventario', index=False)
 
 
 if __name__ == '__main__':
 
     bios_input_file = 'data/0_model_template_2204.xlsm'
+    
+    bios_ouput_file = bios_input_file.replace('.xlsm', '_model.xlsx')
 
-    generar_modelo(file=bios_input_file)
+    plantas_df, cargas_df, estadisticas, periodos, variables = generar_modelo(bios_input_file)
+    
+    resolver_modelo(variables, periodos, cargas_df, plantas_df)
+
+    plantas_df, cargas_df = generar_reporte(plantas_df, cargas_df, variables)
+
+    plantas_df, cargas_df, guardar_reporte(bios_ouput_file, plantas_df, cargas_df, estadisticas)
 
     print('finalizado')

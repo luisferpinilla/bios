@@ -18,6 +18,7 @@ from tqdm import tqdm
 from datetime import timedelta
 import math
 import pulp as pu
+import os
 
 
 def generar_variables_despacho(periodos: list, cargas_df: pd.DataFrame, plantas_df: pd.DataFrame, variables: dict) -> dict:
@@ -410,6 +411,8 @@ def generar_res_balance_masa_cargas(variables: dict, periodos: list, cargas_df: 
                 rest = (inventario_hoy == inventario_ayer + llegadas, rest_name)
 
             rest_list.append(rest)
+            
+    return rest_list
 
 
 def generar_res_balance_masa_plantas(variables: dict, periodos: list, plantas_df: pd.DataFrame) -> list:
@@ -548,6 +551,52 @@ def generar_modelo(bios_input_file: str):
     rest_balance_puerto = generar_res_balance_masa_cargas(variables, periodos, cargas_df)
     
     rest_balance_planta = generar_res_balance_masa_plantas(variables, periodos, plantas_df)
+    
+    
+    
+    
+    
+    
+    problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
+
+    # Agregando funcion objetivo
+    problema += pu.lpSum(func_obj)
+    
+    # Agregando balance de masa puerto
+    for rest in rest_balance_puerto:
+        problema += rest
+    
+    # Agregando balande ce masa en planta
+    for rest in rest_balance_planta:
+        problema += rest
+       
+    # Cantidad CPU habilitadas para trabajar
+    cpu_count = max(1, os.cpu_count()-1)
+    
+    # Gap en millones de pesos
+    gap = 5000000    
+    # Tiempo máximo de detencion en minutos
+    t_limit_minutes = 10  
+        
+    print('cpu count', cpu_count)
+    print('tiempo limite', t_limit_minutes, 'minutos')
+    print('ejecutando ', len(periodos), 'periodos')
+    
+    print('GAP tolerable', gap, 'millones de pesos')
+    engine = pu.PULP_CBC_CMD(
+        timeLimit=60*t_limit_minutes,
+        gapAbs=gap,
+        warmStart=True,
+        cuts=True,
+        presolve=True,
+        threads=cpu_count)
+    
+    problema.solve(solver=engine)
+    
+    
+    
+    
+    
 
     with pd.ExcelWriter(path=bios_model_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)

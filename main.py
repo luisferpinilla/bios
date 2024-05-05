@@ -140,7 +140,7 @@ def generar_variables_inventario_planta(variables:dict, periodos:list, plantas_d
         planta = plantas_df.loc[i]['planta']
         ingrediente = plantas_df.loc[i]['ingrediente']
         
-        var_group = f'inventario_{planta}_{ingrediente}'
+        var_group = f'{planta}_{ingrediente}'
         
         variables_inventario[var_group] = dict()
         
@@ -154,7 +154,7 @@ def generar_variables_inventario_planta(variables:dict, periodos:list, plantas_d
                 capacidad = capacidad_row.iloc[0][periodo]
                 inventario = inventario_row.iloc[0][periodo]
                 
-                var_name = f'{var_group}_{periodo.strftime("%Y%m%d")}'
+                var_name = f'inventario_{var_group}_{periodo.strftime("%Y%m%d")}'
                 
                 var = pu.LpVariable(name=var_name,
                                     lowBound=0.0,
@@ -178,7 +178,7 @@ def generar_variables_backorder_planta(variables:dict, periodos:list, plantas_df
         planta = plantas_df.loc[i]['planta']
         ingrediente = plantas_df.loc[i]['ingrediente']
         
-        var_group = f'bakorder_{planta}_{ingrediente}'
+        var_group = f'{planta}_{ingrediente}'
         
         variables_backorder[var_group] = dict()
         
@@ -192,7 +192,7 @@ def generar_variables_backorder_planta(variables:dict, periodos:list, plantas_df
                 consumo = consumo_row.iloc[0][periodo]
                 inventario = inventario_row.iloc[0][periodo]
                 
-                var_name = f'{var_group}_{periodo.strftime("%Y%m%d")}'
+                var_name = f'backorder_{var_group}_{periodo.strftime("%Y%m%d")}'
                 
                 var = pu.LpVariable(name=var_name,
                                     lowBound=0.0,
@@ -251,23 +251,28 @@ def generar_Variables_safety_stock_planta(variables:dict, periodos:list, plantas
 
 def generar_funcion_objetivo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plantas_df:pd.DataFrame)->list:
 
-    f_objetivo = list()
+    # Costo de no safety stock por día
+    costo_safety_stock_dia = 50000
+
+    # Costo de backorder por dia
+    costo_backorder_dia = costo_safety_stock_dia*5    
+
 
     # Costo de transporte
+    
+    costo_transporte_fobj = list()
 
     cargas = cargas_df.set_index(['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']).copy()
     
     importaciones_index = list(set([(i[0], i[1], i[2], i[3], i[4]) for i in cargas.index]))
     
     plantas = list(plantas_df['planta'].unique())
-    
-    
-    
+       
     for i in tqdm(importaciones_index):
         
+        key = '_'.join(i)
+        
         for planta in plantas:  
-            
-            key = '_'.join(i)
             
             if planta in variables['despacho'][key].keys():
             
@@ -281,35 +286,48 @@ def generar_funcion_objetivo(variables:dict, periodos:list, cargas_df:pd.DataFra
                         
                         var = variables['despacho'][key][planta][periodo]
                         
-                        f_objetivo.append(costo*var)
-        
-            
-    
-    
-    
-    
-    for periodo in periodos:
-        
-        
-        
-        
-    for impo, carga in cargas.items():
-        for nombre_planta, planta in plantas.items():
-            if periodo in carga['costo_despacho'][nombre_planta]['variable_despacho'].keys():
-                # CT_ijt*T_ijt
-                # + periodos.index(periodo)
-                costo_envio = carga['costo_despacho'][nombre_planta]['costo_envio'][periodo]
-                costo_almacenamiento = carga['costo_despacho']['envigado']['descuento_almacenamiento'][periodo]*cap_camion
-                var_envio = carga['costo_despacho'][nombre_planta]['variable_despacho'][periodo]
-                funcion_objetivo.append(
-                    (costo_envio-costo_almacenamiento)*var_envio)
-            
-            
-            
+                        costo_transporte_fobj.append(costo*var)
+
     # Costo almacenamiento en puerto
+    costo_almacenamiento_fobj = list()
+    
+    for i in tqdm(importaciones_index):
+        
+        key = '_'.join(i)
+        
+        costo_almacenamiento_row = cargas.loc[(i[0], i[1], i[2], i[3], i[4], f'costo_almacenamiento_por_kg')]
+        
+        for periodo in periodos:
+            
+            costo_almacenamiento = costo_almacenamiento_row[periodo]
+            
+            if costo_almacenamiento > 0.0:
+                
+                var = variables['inventario_puerto'][key][periodo]
+                
+                costo_almacenamiento_fobj.append(costo_almacenamiento*var)
+           
     # costo backorder
+    costo_backorder_obj = list()
+    
+    for planta_ingrediente, values in tqdm(variables['backorder'].items()):
+        
+        for periodo, variable in values.items():
+            
+            costo_backorder_obj.append(costo_backorder_dia*variable)
+        
+    
     # Costo no alcanzar SS
-    pass
+    costo_safety_stock_obj = list()
+    
+    for planta_ingrediente, values in tqdm(variables['safety_sotck'].items()):
+        
+        for periodo, variable in values.items():
+            
+            costo_safety_stock_obj.append(costo_safety_stock_dia*variable)
+            
+    return costo_transporte_fobj + costo_almacenamiento_fobj + costo_backorder_obj + costo_safety_stock_obj
+
     
 
 def generar_res_balance_masa_cargas()->list:

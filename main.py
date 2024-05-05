@@ -244,7 +244,7 @@ def generar_Variables_safety_stock_planta(variables:dict, periodos:list, plantas
                         
                         variables_ss[var_group][periodo] = var
                 
-    variables['backorder'] = variables_ss
+    variables['safety_sotck'] = variables_ss
 
 def generar_funcion_objetivo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plantas_df:pd.DataFrame)->list:
     # Costo de transporte

@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from utils.asignador_capacidad import AsignadorCapacidad
 from utils.objetivo_inventario import obtener_objetivo_inventario
-from utils.validacion import Validacion
 from tqdm import tqdm
 from datetime import datetime, timedelta
 

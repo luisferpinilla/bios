@@ -206,7 +206,45 @@ def generar_variables_backorder_planta(variables:dict, periodos:list, plantas_df
 
 
 def generar_Variables_safety_stock_planta(variables:dict, periodos:list, plantas_df:pd.DataFrame):
-    pass
+    
+    variables_ss = dict()
+    
+    for i in tqdm(plantas_df[plantas_df['variable']=='safety_stock'].index):
+        
+        planta = plantas_df.loc[i]['planta']
+        ingrediente = plantas_df.loc[i]['ingrediente']
+        
+        var_group = f'safety_stock_{planta}_{ingrediente}'
+        
+        variables_ss[var_group] = dict()
+        
+        safety_stock_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='safety_stock')].copy()
+        inventario_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='inventario')].copy()
+        
+        for periodo in periodos:
+            
+            if safety_stock_row.shape[0]==1:
+                
+                safety_stock = safety_stock_row.iloc[0][periodo]
+                inventario = inventario_row.iloc[0][periodo]
+                
+                if safety_stock > 0:
+                
+                    
+                    if inventario < safety_stock:
+                    
+                        var_name = f'{var_group}_{periodo.strftime("%Y%m%d")}'
+                        
+                        var = pu.LpVariable(name=var_name,
+                                            lowBound=0.0,
+                                            upBound=math.ceil(safety_stock),
+                                            cat=pu.LpContinuous)
+
+                        var.setInitialValue(val=safety_stock-inventario, check=True)
+                        
+                        variables_ss[var_group][periodo] = var
+                
+    variables['backorder'] = variables_ss
 
 def generar_funcion_objetivo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plantas_df:pd.DataFrame)->list:
     # Costo de transporte
@@ -268,6 +306,10 @@ def generar_modelo(bios_input_file:str):
     generar_variables_inventario_planta(variables, periodos, plantas_df)
     
     generar_variables_backorder_planta(variables, periodos, plantas_df)
+    
+    generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
+    
+    
     
     with pd.ExcelWriter(path=bios_model_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)

@@ -115,8 +115,7 @@ def __generar_capacidad_recepcion(dataframes: pd.DataFrame, periodos: list, matr
         limpieza['variable'] = 'minutos_limpieza'
 
         for periodo in periodos:
-            total[periodo] = float(
-                capacidad_df.loc[i]['operacion_minutos']*capacidad_df.loc[i]['plataformas'])
+            total[periodo] = float(capacidad_df.loc[i]['operacion_minutos']*capacidad_df.loc[i]['plataformas'])
             limpieza[periodo] = float(capacidad_df.loc[i]['minutos_limpieza'])
 
         matriz.append(total)
@@ -134,8 +133,6 @@ def __generar_capacidad_recepcion(dataframes: pd.DataFrame, periodos: list, matr
                     capacidad_df.loc[i][ingrediente])
 
             matriz.append(por_ingrediente)
-
-    return matriz
 
 
 def __generar_capacidad_almacenamiento(matriz: list, periodos: list, dataframes: pd.DataFrame):

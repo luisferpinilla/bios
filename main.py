@@ -79,6 +79,8 @@ def generar_variables_despacho(periodos:list, cargas_df:pd.DataFrame, plantas_df
                                         upBound=upbound,
                                         cat=pu.LpInteger)
                     
+                    var.setInitialValue(val=0,check=True)
+                    
                     
                     if not periodo in variables_despacho[importacion_var_group].keys():
                         variables_despacho[importacion_var_group][periodo] = list()
@@ -116,8 +118,10 @@ def generar_variables_inventario_puerto(variables:dict, periodos:list, cargas_df
             
             var = pu.LpVariable(name=var_name,
                                 lowBound=0.0,
-                                upBound=inventario_puerto,
+                                upBound=math.ceil(inventario_puerto),
                                 cat=pu.LpContinuous)
+            
+            var.setInitialValue(val=inventario_puerto, check=True)
             
             variables_inventario_puerto[importacion_var_group][periodo]=var
             
@@ -125,11 +129,80 @@ def generar_variables_inventario_puerto(variables:dict, periodos:list, cargas_df
         
     
 def generar_variables_inventario_planta(variables:dict, periodos:list, plantas_df:pd.DataFrame):    
-    pass
+    
+    variables_inventario = dict()
+    
+    for i in tqdm(plantas_df[plantas_df['variable']=='inventario'].index):
+        
+        planta = plantas_df.loc[i]['planta']
+        ingrediente = plantas_df.loc[i]['ingrediente']
+        
+        var_group = f'inventario_{planta}_{ingrediente}'
+        
+        variables_inventario[var_group] = dict()
+        
+        capacidad_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='capacidad_max')].copy()
+        inventario_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='inventario')].copy()
+        
+        for periodo in periodos:
+            
+            if capacidad_row.shape[0]==1:
+                
+                capacidad = capacidad_row.iloc[0][periodo]
+                inventario = inventario_row.iloc[0][periodo]
+                
+                var_name = f'{var_group}_{periodo.strftime("%Y%m%d")}'
+                
+                var = pu.LpVariable(name=var_name,
+                                    lowBound=0.0,
+                                    upBound=math.ceil(max(capacidad, inventario)),
+                                    cat=pu.LpContinuous)
+                
+                var.setInitialValue(val=inventario, check=True)
 
-
+                
+                variables_inventario[var_group][periodo] = var
+                
+    variables['inventario_planta'] = variables_inventario
+                
+    
 def generar_variables_backorder_planta(variables:dict, periodos:list, plantas_df:pd.DataFrame):
-    pass
+    
+    variables_backorder = dict()
+    
+    for i in tqdm(plantas_df[plantas_df['variable']=='backorder'].index):
+        
+        planta = plantas_df.loc[i]['planta']
+        ingrediente = plantas_df.loc[i]['ingrediente']
+        
+        var_group = f'bakorder_{planta}_{ingrediente}'
+        
+        variables_backorder[var_group] = dict()
+        
+        consumo_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='consumo')].copy()
+        inventario_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='inventario')].copy()
+        
+        for periodo in periodos:
+            
+            if consumo_row.shape[0]==1:
+                
+                consumo = consumo_row.iloc[0][periodo]
+                inventario = inventario_row.iloc[0][periodo]
+                
+                var_name = f'{var_group}_{periodo.strftime("%Y%m%d")}'
+                
+                var = pu.LpVariable(name=var_name,
+                                    lowBound=0.0,
+                                    upBound=consumo,
+                                    cat=pu.LpContinuous)
+                if consumo < inventario:
+                    var.setInitialValue(val=0.0, check=True)
+                else:
+                    var.setInitialValue(val=consumo-inventario, check=True)
+                
+                variables_backorder[var_group][periodo] = var
+                
+    variables['backorder'] = variables_backorder
 
 
 def generar_Variables_safety_stock_planta(variables:dict, periodos:list, plantas_df:pd.DataFrame):
@@ -163,10 +236,10 @@ def resolver_modelo():
 
 
 def generar_reporte():
-
+    pass
     
     
-def generar_modelo(file:str):
+def generar_modelo(bios_input_file:str):
     
     variables = dict()
     
@@ -192,6 +265,10 @@ def generar_modelo(file:str):
     
     generar_variables_inventario_puerto(variables, periodos, cargas_df)
     
+    generar_variables_inventario_planta(variables, periodos, plantas_df)
+    
+    generar_variables_backorder_planta(variables, periodos, plantas_df)
+    
     with pd.ExcelWriter(path=bios_model_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)
         cargas_df.to_excel(writer, sheet_name='cargas', index=False)
@@ -206,29 +283,10 @@ if __name__ == '__main__':
 
     bios_input_file = 'data/0_model_template_2204.xlsm'
 
-    dataframes = __leer_archivo(bios_input_file=bios_input_file)
-
-    periodos = __generar_periodos(dataframes)
-    
-    estadisticas = obtener_objetivo_inventario(bios_input_file)
-
-    plantas_df = obtener_matriz_plantas(dataframes, periodos, estadisticas)
-
-    cargas_df = obtener_matriz_importaciones(dataframes, periodos)
-
-    validation_list = list()
-    
-    cargas_df = validacion_eliminar_cargas_sin_inventario(cargas_df,validation_list)
-
-    plantas_df = validacion_eliminar_ingredientes_sin_consumo(plantas_df, validation_list)
-
-    bios_model_file = bios_input_file.replace('.xlsm', '_model.xlsx')
+    generar_modelo(file=bios_input_file)
     
     
 
-    with pd.ExcelWriter(path=bios_model_file) as writer:
-        plantas_df.to_excel(writer, sheet_name='plantas', index=False)
-        cargas_df.to_excel(writer, sheet_name='cargas', index=False)
-        estadisticas['objetivo_inventario'].to_excel(writer, sheet_name='objetivo_inventario', index=False)
+
 
     print('finalizado')

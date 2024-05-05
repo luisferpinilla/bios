@@ -33,7 +33,7 @@ def generar_variables_despacho(periodos:list, cargas_df:pd.DataFrame, plantas_df
         puerto = cargas_df.loc[i]['puerto']
         operador = cargas_df.loc[i]['operador']
         
-        importacion_var_group = f'despacho_{ingrediente}_{importacion}_{empresa}_{puerto}_{operador}'
+        importacion_var_group = f'{ingrediente}_{importacion}_{empresa}_{puerto}_{operador}'
         variables_despacho[importacion_var_group] = dict()
         
         plantas = list(plantas_df[plantas_df['ingrediente']==ingrediente]['planta'].unique())
@@ -41,16 +41,21 @@ def generar_variables_despacho(periodos:list, cargas_df:pd.DataFrame, plantas_df
         
         for planta in plantas:
             
+            variables_despacho[importacion_var_group][planta] = dict()
+            
             if not planta in variables_recepcion.keys():
                 variables_recepcion[planta] = dict()
                 
             if not ingrediente in variables_recepcion[planta].keys():
-                variables_recepcion[planta][ingrediente] = dict()    
+                variables_recepcion[planta][ingrediente] = dict() 
+                
         
             inventario_planta_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='inventario')]
             capacidad_planta_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='capacidad_max')]
         
             for periodo in periodos[periodo_admin:-lead_time:]:
+                
+                
                 
                 inventario_puerto = cargas_df.loc[i][periodo]
                         
@@ -82,14 +87,12 @@ def generar_variables_despacho(periodos:list, cargas_df:pd.DataFrame, plantas_df
                     var.setInitialValue(val=0,check=True)
                     
                     
-                    if not periodo in variables_despacho[importacion_var_group].keys():
-                        variables_despacho[importacion_var_group][periodo] = list()
+                    variables_despacho[importacion_var_group][planta][periodo] = var
                         
                     periodo_entrega = periodos[periodos.index(periodo)+lead_time]     
                     if not periodo_entrega in variables_recepcion[planta][ingrediente].keys():                 
                         variables_recepcion[planta][ingrediente][periodo_entrega] = list()
                     
-                    variables_despacho[importacion_var_group][periodo].append(var)
                     variables_recepcion[planta][ingrediente][periodo_entrega].append(var)
 
     variables['despacho'] = variables_despacho
@@ -247,7 +250,62 @@ def generar_Variables_safety_stock_planta(variables:dict, periodos:list, plantas
     variables['safety_sotck'] = variables_ss
 
 def generar_funcion_objetivo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plantas_df:pd.DataFrame)->list:
+
+    f_objetivo = list()
+
     # Costo de transporte
+
+    cargas = cargas_df.set_index(['ingrediente', 'importacion', 'empresa', 'puerto', 'operador', 'variable']).copy()
+    
+    importaciones_index = list(set([(i[0], i[1], i[2], i[3], i[4]) for i in cargas.index]))
+    
+    plantas = list(plantas_df['planta'].unique())
+    
+    
+    
+    for i in tqdm(importaciones_index):
+        
+        for planta in plantas:  
+            
+            key = '_'.join(i)
+            
+            if planta in variables['despacho'][key].keys():
+            
+                costo_despacho_camion_row = cargas.loc[(i[0], i[1], i[2], i[3], i[4], f'costo_total_despacho_camion_{planta}')]
+                
+                for periodo in periodos:                    
+                    
+                    if periodo in variables['despacho'][key][planta].keys():
+                    
+                        costo = costo_despacho_camion_row[periodo]
+                        
+                        var = variables['despacho'][key][planta][periodo]
+                        
+                        f_objetivo.append(costo*var)
+        
+            
+    
+    
+    
+    
+    for periodo in periodos:
+        
+        
+        
+        
+    for impo, carga in cargas.items():
+        for nombre_planta, planta in plantas.items():
+            if periodo in carga['costo_despacho'][nombre_planta]['variable_despacho'].keys():
+                # CT_ijt*T_ijt
+                # + periodos.index(periodo)
+                costo_envio = carga['costo_despacho'][nombre_planta]['costo_envio'][periodo]
+                costo_almacenamiento = carga['costo_despacho']['envigado']['descuento_almacenamiento'][periodo]*cap_camion
+                var_envio = carga['costo_despacho'][nombre_planta]['variable_despacho'][periodo]
+                funcion_objetivo.append(
+                    (costo_envio-costo_almacenamiento)*var_envio)
+            
+            
+            
     # Costo almacenamiento en puerto
     # costo backorder
     # Costo no alcanzar SS

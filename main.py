@@ -549,17 +549,18 @@ def generar_res_objetivo_fin_mes(variables:dict, periodos:list) -> list:
         ingrediente = campos[1]
         
         objetivo_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='objetivo_inventario')]              
-        objetivo = objetivo_row.iloc[0][ultimo_periodo]
-        
-        
-        if ultimo_periodo in variables['inventario_planta'][planta_ingrediente].keys():
-            var = variables['inventario_planta'][planta_ingrediente][ultimo_periodo]
+        if objetivo_row.shape[0]>0:
+            objetivo = objetivo_row.iloc[0][ultimo_periodo]
             
-            rest_name = f'objetivo_{planta_ingrediente}_{ultimo_periodo.strftime("%Y%m%d")}'
-        
-            rest = (var >= objetivo, rest_name)
             
-            rest_list.append(rest)
+            if ultimo_periodo in variables['inventario_planta'][planta_ingrediente].keys():
+                var = variables['inventario_planta'][planta_ingrediente][ultimo_periodo]
+                
+                rest_name = f'objetivo_{planta_ingrediente}_{ultimo_periodo.strftime("%Y%m%d")}'
+            
+                rest = (var >= objetivo, rest_name)
+                
+                rest_list.append(rest)
     
     return rest_list
 
@@ -635,9 +636,11 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
     # Remplazar valores en plantas_df y en cargas_df
     print('Generando reporte:')
     
-    columns = list(plantas_df.columns)
+    
     
     print('actualizando informacion de plantas')
+    columns = list(plantas_df.columns)
+    
     for i in tqdm(range(plantas_df.shape[0])):
         planta = plantas_df.iloc[i]['planta']
         ingrediente = plantas_df.iloc[i]['ingrediente']
@@ -687,6 +690,7 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
     
     # Despachos de cargas
     print('Actualizando reporte de cargas')
+    columns = list(cargas_df.columns)
     for i in tqdm(range(cargas_df.shape[0])):
         
         ingrediente = cargas_df.iloc[i]['ingrediente']

@@ -14,11 +14,11 @@ from utils.problema import obtener_matriz_plantas
 from utils.problema import obtener_matriz_importaciones
 from utils.problema import validacion_eliminar_cargas_sin_inventario
 from utils.problema import validacion_eliminar_ingredientes_sin_consumo
+import os
 from tqdm import tqdm
 from datetime import timedelta
 import math
 import pulp as pu
-
 
 
 def generar_variables_despacho(periodos: list, cargas_df: pd.DataFrame, plantas_df: pd.DataFrame, variables: dict) -> dict:
@@ -173,7 +173,7 @@ def generar_variables_inventario_planta(variables: dict, periodos: list, plantas
                                     cat=pu.LpContinuous)
 
                 var.setInitialValue(val=inventario, check=True)
-                
+
                 variables_inventario[var_group][periodo] = var
 
     variables['inventario_planta'] = variables_inventario
@@ -433,23 +433,28 @@ def generar_res_balance_masa_plantas(variables: dict, periodos: list, plantas_df
         ingrediente = i[1]
 
         inventario_inicial = plantas.loc[(
-            i[0], i[1], 'inventario')][periodo_anterior]
+            planta, ingrediente, 'inventario')][periodo_anterior]
 
-        if (i[0], i[1], 'llegadas_planeadas') in plantas.index:
+        if (planta, ingrediente, 'llegadas_planeadas') in plantas.index:
             llegadas = plantas.loc[(
-                i[0], i[1], 'llegadas_planeadas')][periodo_anterior]
+                planta, ingrediente, 'llegadas_planeadas')][periodos[0]]
         else:
             llegadas = 0.0
 
-        rest_name = f'balance_planta_{planta_ingrediente}_{periodo_anterior.strftime("%Y%m%d")}'
+        rest_name = f'balance_planta_{planta_ingrediente}_{periodos[0].strftime("%Y%m%d")}'
 
         if periodos[0] in variables['inventario_planta'][planta_ingrediente]:
 
             inv_al_final = variables['inventario_planta'][planta_ingrediente][periodos[0]]
 
-            consumo_row = plantas.loc[(i[0], i[1], 'consumo')]
+            consumo_row = plantas.loc[(planta, ingrediente, 'consumo')]
+            consumo = consumo_row[periodos[0]]
 
-            rest = (inv_al_final == inventario_inicial + llegadas, rest_name)
+            # Backorder de hoy
+            backorder = variables['backorder'][planta_ingrediente][periodos[0]]
+
+            rest = (inv_al_final == inventario_inicial +
+                    llegadas - consumo + backorder, rest_name)
 
             rest_list.append(rest)
 
@@ -496,7 +501,7 @@ def generar_res_balance_masa_plantas(variables: dict, periodos: list, plantas_df
     return rest_list
 
 
-def generar_res_capacidad_recepcion_plantas(variables: list, plantas_df: pd.DataFrame, periodos:list) -> list:
+def generar_res_capacidad_recepcion_plantas(variables: list, plantas_df: pd.DataFrame, periodos: list) -> list:
 
     rest_list = list()
 
@@ -539,45 +544,45 @@ def generar_res_capacidad_recepcion_plantas(variables: list, plantas_df: pd.Data
     return rest_list
 
 
-def generar_res_superar_ss(variables:list, plantas_df:pd.DataFrame) -> list:
-    
+def generar_res_superar_ss(variables: list, plantas_df: pd.DataFrame) -> list:
+
     rest_list = list()
-    
+
     for planta_ingrediente in variables['inventario_planta'].keys():
-        
+
         planta = planta_ingrediente.split('_')[0]
         ingrediente = planta_ingrediente.split('_')[1]
-        
+
         for periodo, inventario_var in variables['inventario_planta'][planta_ingrediente].items():
-            
+
             if f'safety_stock_{planta_ingrediente}' in variables['safety_sotck'].keys():
-                
-                if len(variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'])>0:
-                    
+
+                if len(variables['safety_sotck'][f'safety_stock_{planta_ingrediente}']) > 0:
+
                     if periodo in variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'].keys():
-                    
+
                         ss_var = variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'][periodo]
-        
-                        safety_sotck_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='safety_stock')]
-                        
-                        if safety_sotck_row.shape[0]>0:
-                            
+
+                        safety_sotck_row = plantas_df[(plantas_df['planta'] == planta) & (
+                            plantas_df['ingrediente'] == ingrediente) & (plantas_df['variable'] == 'safety_stock')]
+
+                        if safety_sotck_row.shape[0] > 0:
+
                             ss = safety_sotck_row.iloc[0][periodo]
-    
-                            if ss > 0:                        
-    
+
+                            if ss > 0:
+
                                 rest_name = f'cumplir_ss_{planta}_{ingrediente}_{periodo.strftime("%Y%m%d")}'
-                                
-                                rest = (inventario_var + ss_var >= ss, rest_name)
-                                
+
+                                rest = (inventario_var +
+                                        ss_var >= ss, rest_name)
+
                                 rest_list.append(rest)
-    
+
     return rest_list
-    
-    
 
 
-def generar_res_objetivo_fin_mes(plantas_df:pd.DataFrame, variables: dict, periodos: list, porcentaje_obj=0.0) -> list:
+def generar_res_objetivo_fin_mes(plantas_df: pd.DataFrame, variables: dict, periodos: list, porcentaje_obj=0.0) -> list:
 
     rest_list = list()
 
@@ -637,4 +642,95 @@ def generar_modelo(bios_input_file: str):
 
     generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
 
-    return plantas_df, cargas_df, estadisticas, periodos, variables
+    return plantas_df, cargas_df, estadisticas, periodos, variables, validation_list
+
+
+def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, plantas_df: pd.DataFrame):
+
+    # Cantidad CPU habilitadas para trabajar
+    cpu_count = max(1, os.cpu_count()-1)
+
+    # Gap en millones de pesos
+    gap = 5000000
+    # Tiempo máximo de detencion en minutos
+    t_limit_minutes = 5
+
+    # Armar el modelo
+    func_obj = generar_funcion_objetivo(
+        variables, periodos, cargas_df, plantas_df)
+
+    rest_balance_puerto = generar_res_balance_masa_cargas(
+        variables, periodos, cargas_df)
+
+    rest_balance_planta = generar_res_balance_masa_plantas(
+        variables, periodos, plantas_df)
+
+    rest_capacidad_recepcion = generar_res_capacidad_recepcion_plantas(
+        variables, plantas_df, periodos)
+
+    rest_objetivo_inventario_025 = generar_res_objetivo_fin_mes(
+        plantas_df, variables, periodos, 0.25)
+    rest_objetivo_inventario_050 = generar_res_objetivo_fin_mes(
+        plantas_df, variables, periodos, 0.50)
+    rest_objetivo_inventario_075 = generar_res_objetivo_fin_mes(
+        plantas_df, variables, periodos, 0.75)
+    rest_objetivo_inventario_100 = generar_res_objetivo_fin_mes(
+        plantas_df, variables, periodos, 1.00)
+
+    problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
+
+    # Agregando funcion objetivo
+    problema += pu.lpSum(func_obj)
+
+    # Agregando balance de masa puerto
+    for rest in rest_balance_puerto:
+        problema += rest
+
+    # Agregando balande ce masa en planta
+    for rest in rest_balance_planta:
+        problema += rest
+
+    print('Ejecutando modelo fase 1')
+    print('cpu count', cpu_count)
+    print('tiempo limite', t_limit_minutes, 'minutos')
+    print('ejecutando ', len(periodos), 'periodos')
+    print('GAP tolerable', gap, 'millones de pesos')
+
+    engine = pu.PULP_CBC_CMD(
+        timeLimit=60*t_limit_minutes,
+        gapAbs=gap,
+        gapRel=0.10,
+        warmStart=True,
+        cuts=True,
+        presolve=True,
+        threads=cpu_count)
+
+    problema.solve(solver=engine)
+
+
+'''
+    print('Ejecutando modelo fase 2')
+    # Agregando restriccion de objetivo de inventario
+    for rest in rest_objetivo_inventario_050:
+        problema += rest
+
+    print('cpu count', cpu_count)
+    print('tiempo limite', t_limit_minutes, 'minutos')
+    print('ejecutando ', len(periodos), 'periodos')
+    print('GAP tolerable', gap, 'millones de pesos')
+
+    engine = pu.PULP_CBC_CMD(
+        timeLimit=60*10,
+        gapAbs=gap,
+        gapRel=0.10,
+        warmStart=True,
+        cuts=True,
+        presolve=True,
+        threads=cpu_count)
+
+    problema.solve(solver=engine)
+
+    # Agregando restriccion de recepcion
+    # for rest in rest_capacidad_recepcion:
+    #    problema += rest
+'''

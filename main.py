@@ -529,14 +529,39 @@ def generar_res_capacidad_recepcion_plantas(variables:list, plantas_df:pd.DataFr
         rest= (pu.lpSum(left_expresion) <= minutos_totales, rest_name)
         
         rest_list.append(rest)
+        
+    return rest_list
 
 
 def generar_res_superar_ss() -> list:
     pass
 
 
-def generar_res_objetivo_fin_mes() -> list:
-    pass
+def generar_res_objetivo_fin_mes(variables:dict, periodos:list) -> list:
+    
+    rest_list = list()
+    
+    ultimo_periodo = periodos[-1]
+    
+    for planta_ingrediente in variables['inventario_planta'].keys():
+        campos = planta_ingrediente.split('_')
+        planta = campos[0]
+        ingrediente = campos[1]
+        
+        objetivo_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='objetivo_inventario')]              
+        objetivo = objetivo_row.iloc[0][ultimo_periodo]
+        
+        
+        if ultimo_periodo in variables['inventario_planta'][planta_ingrediente].keys():
+            var = variables['inventario_planta'][planta_ingrediente][ultimo_periodo]
+            
+            rest_name = f'objetivo_{planta_ingrediente}_{ultimo_periodo.strftime("%Y%m%d")}'
+        
+            rest = (var >= objetivo, rest_name)
+            
+            rest_list.append(rest)
+    
+    return rest_list
 
 
 
@@ -553,6 +578,8 @@ def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plant
     
     rest_capacidad_recepcion =  generar_res_capacidad_recepcion_plantas(variables, plantas_df)
     
+    rest_objetivo_inventario = generar_res_objetivo_fin_mes(variables, periodos)
+    
     problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
 
     # Agregando funcion objetivo
@@ -568,6 +595,10 @@ def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plant
         
     # Agregando restriccion de receocion
     for rest in rest_capacidad_recepcion:
+        problema += rest
+        
+    # Agregando restriccion de objetivo de inventario
+    for rest in rest_objetivo_inventario:
         problema += rest
        
     # Cantidad CPU habilitadas para trabajar
@@ -587,7 +618,7 @@ def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plant
     engine = pu.PULP_CBC_CMD(
         timeLimit=60*t_limit_minutes,
         gapAbs=gap,
-        warmStart=False,
+        warmStart=True,
         cuts=True,
         presolve=True,
         threads=cpu_count)
@@ -642,7 +673,6 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
                     importacion = llegada.name.replace(f'despacho_{ingrediente}_', '')
                     importacion = importacion.replace(f'_{planta}', '')
                     importacion = importacion.replace(f'_{periodo_llegada.strftime("%Y%m%d")}', '')
-                    print(planta, importacion, periodo, cantidad_llegada)
                     if cantidad_llegada > 0:
                         recibos.append({'planta':planta, 
                                         'ingrediente':ingrediente,
@@ -664,6 +694,7 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
         empresa = cargas_df.iloc[i]['empresa']
         puerto = cargas_df.iloc[i]['puerto']
         operador = cargas_df.iloc[i]['operador']
+        variable = cargas_df.iloc[i]['variable']
                     
         # Variables de inventario de cargas
         if variable == 'inventario':
@@ -672,7 +703,10 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
             if key in inventarios.keys():
                 for periodo, lp_var in inventarios[key].items():
                     nuevo_valor = lp_var.varValue
+                    valor_anterior = cargas_df.iloc[i,columns.index(periodo)]
                     cargas_df.iloc[i,columns.index(periodo)] = nuevo_valor
+                    print(planta,ingrediente, periodo, valor_anterior, nuevo_valor)
+                    
               
     return (plantas_df, cargas_df)
       

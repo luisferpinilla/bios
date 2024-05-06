@@ -369,7 +369,7 @@ def obtener_objetivo_inventario(bios_input_file: str, cap_camion=34000, cap_desc
         if x['objetivo_dio_general'] > 0 and x['consumo_medio'] > 0:
             objetivo = x['capacidad_dio'] - 2*x['aporte_camion_dio']
 
-            return min(x['objetivo_dio_general'], objetivo)
+            return max(min(x['objetivo_dio_general'], objetivo),0.0)
 
         return 0
 

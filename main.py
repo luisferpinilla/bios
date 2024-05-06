@@ -313,7 +313,7 @@ def generar_funcion_objetivo(variables: dict, periodos: list, cargas_df: pd.Data
         key = '_'.join(i)
 
         costo_almacenamiento_row = cargas.loc[(
-            i[0], i[1], i[2], i[3], i[4], f'costo_almacenamiento_por_kg')]
+            i[0], i[1], i[2], i[3], i[4], 'costo_almacenamiento_por_kg')]
 
         for periodo in periodos:
 
@@ -342,8 +342,9 @@ def generar_funcion_objetivo(variables: dict, periodos: list, cargas_df: pd.Data
         for periodo, variable in values.items():
 
             costo_safety_stock_obj.append(costo_safety_stock_dia*variable)
-            
-    f_obj = costo_transporte_fobj + costo_almacenamiento_fobj + costo_backorder_obj + costo_safety_stock_obj
+
+    f_obj = costo_transporte_fobj + costo_almacenamiento_fobj + \
+        costo_backorder_obj + costo_safety_stock_obj
 
     return f_obj
 
@@ -411,7 +412,7 @@ def generar_res_balance_masa_cargas(variables: dict, periodos: list, cargas_df: 
                 rest = (inventario_hoy == inventario_ayer + llegadas, rest_name)
 
             rest_list.append(rest)
-            
+
     return rest_list
 
 
@@ -431,49 +432,50 @@ def generar_res_balance_masa_plantas(variables: dict, periodos: list, plantas_df
         planta = i[0]
         ingrediente = i[1]
 
-        inventario_inicial = plantas.loc[(i[0], i[1], 'inventario')][periodo_anterior]
+        inventario_inicial = plantas.loc[(
+            i[0], i[1], 'inventario')][periodo_anterior]
 
         if (i[0], i[1], 'llegadas_planeadas') in plantas.index:
-            llegadas = plantas.loc[(i[0], i[1], 'llegadas_planeadas')][periodo_anterior]
+            llegadas = plantas.loc[(
+                i[0], i[1], 'llegadas_planeadas')][periodo_anterior]
         else:
             llegadas = 0.0
 
         rest_name = f'balance_planta_{planta_ingrediente}_{periodo_anterior.strftime("%Y%m%d")}'
 
-        
-        if periodos[0] in  variables['inventario_planta'][planta_ingrediente]:
-            
+        if periodos[0] in variables['inventario_planta'][planta_ingrediente]:
+
             inv_al_final = variables['inventario_planta'][planta_ingrediente][periodos[0]]
-    
-            consumo_row = plantas.loc[(i[0], i[1], 'consumo')] 
-    
+
+            consumo_row = plantas.loc[(i[0], i[1], 'consumo')]
+
             rest = (inv_al_final == inventario_inicial + llegadas, rest_name)
-    
+
             rest_list.append(rest)
-    
+
             for hoy in periodos[1:]:
-                
+
                 consumo = consumo_row[hoy]
-    
+
                 # Periodo anterior
                 ayer = periodos[periodos.index(hoy)-1]
-    
+
                 # inventario al final del periodo anterior
                 inventario_ayer = variables['inventario_planta'][planta_ingrediente][ayer]
-    
+
                 # inventario al final de hoy
                 inventario_hoy = variables['inventario_planta'][planta_ingrediente][hoy]
-                
+
                 # Backorder de hoy
                 backorder = variables['backorder'][planta_ingrediente][hoy]
-    
+
                 if (i[0], i[1], 'llegadas') in plantas.index:
                     llegadas = plantas.loc[(i[0], i[1], 'llegadas')][hoy]
                 else:
                     llegadas = 0.0
-    
+
                 rest_name = f'balance_planta_{planta_ingrediente}_{hoy.strftime("%Y%m%d")}'
-    
+
                 # Despachos hacia plantas
                 llegadas_planta = list()
                 if planta in variables['recepcion'].keys():
@@ -481,55 +483,59 @@ def generar_res_balance_masa_plantas(variables: dict, periodos: list, plantas_df
                         if hoy in variables['recepcion'][planta][ingrediente].keys():
                             for variable in variables['recepcion'][planta][ingrediente][hoy]:
                                 llegadas_planta.append(variable)
-    
+
                 if len(llegadas_planta) > 0:
-                    rest = (inventario_hoy == inventario_ayer + llegadas + 34000*pu.lpSum(llegadas_planta) - consumo + backorder, rest_name)
+                    rest = (inventario_hoy == inventario_ayer + llegadas + 34000 *
+                            pu.lpSum(llegadas_planta) - consumo + backorder, rest_name)
                 else:
-                    rest = (inventario_hoy == inventario_ayer + llegadas - consumo + backorder, rest_name)
-    
+                    rest = (inventario_hoy == inventario_ayer +
+                            llegadas - consumo + backorder, rest_name)
+
                 rest_list.append(rest)
-                
+
     return rest_list
 
 
-def generar_res_capacidad_recepcion_plantas(variables:list, plantas_df:pd.DataFrame) -> list:
-    
+def generar_res_capacidad_recepcion_plantas(variables: list, plantas_df: pd.DataFrame) -> list:
+
     rest_list = list()
-    
+
     # Despachos hacia plantas
     llegadas_planta = list()
-    
+
     for periodo in tqdm(periodos):
-        
+
         for planta in variables['recepcion'].keys():
-            
+
             rest_name = f'tiempo_recepcion_{planta}_{periodo.strftime("%Y%m%d")}'
             left_expresion = list()
-            
-            minutos_totales_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']=='total')&(plantas_df['variable']=='capacidad_total_minutos_dia')]              
+
+            minutos_totales_row = plantas_df[(plantas_df['planta'] == planta) & (
+                plantas_df['ingrediente'] == 'total') & (plantas_df['variable'] == 'capacidad_total_minutos_dia')]
             minutos_totales = minutos_totales_row.iloc[0][periodo]
-            
-            
+
             for ingrediente in variables['recepcion'][planta].keys():
-                
-                minutos_ingrediente_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='minutos_por_ingrediente')]              
+
+                minutos_ingrediente_row = plantas_df[(plantas_df['planta'] == planta) & (
+                    plantas_df['ingrediente'] == ingrediente) & (plantas_df['variable'] == 'minutos_por_ingrediente')]
                 minutos_ingrediente = minutos_ingrediente_row.iloc[0][periodo]
-                
+
                 if periodo in variables['recepcion'][planta][ingrediente].keys():
-                    
+
                     llegadas = variables['recepcion'][planta][ingrediente][periodo]
-                    
+
                     for llegada in llegadas:
-                    
-                        left_expresion.append(float(minutos_ingrediente)*llegada)
-                    
+
+                        left_expresion.append(
+                            float(minutos_ingrediente)*llegada)
+
                     for variable in variables['recepcion'][planta][ingrediente][periodo]:
                         llegadas_planta.append(variable)
-        
-        rest= (pu.lpSum(left_expresion) <= minutos_totales, rest_name)
-        
+
+        rest = (pu.lpSum(left_expresion) <= minutos_totales, rest_name)
+
         rest_list.append(rest)
-        
+
     return rest_list
 
 
@@ -537,115 +543,146 @@ def generar_res_superar_ss() -> list:
     pass
 
 
-def generar_res_objetivo_fin_mes(variables:dict, periodos:list) -> list:
-    
+def generar_res_objetivo_fin_mes(variables: dict, periodos: list) -> list:
+
     rest_list = list()
-    
+
     ultimo_periodo = periodos[-1]
-    
+
     for planta_ingrediente in variables['inventario_planta'].keys():
         campos = planta_ingrediente.split('_')
         planta = campos[0]
         ingrediente = campos[1]
-        
-        objetivo_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='objetivo_inventario')]              
-        if objetivo_row.shape[0]>0:
+
+        objetivo_row = plantas_df[(plantas_df['planta'] == planta) & (
+            plantas_df['ingrediente'] == ingrediente) & (plantas_df['variable'] == 'objetivo_inventario')]
+        if objetivo_row.shape[0] > 0:
             objetivo = objetivo_row.iloc[0][ultimo_periodo]
-            
-            
+
             if ultimo_periodo in variables['inventario_planta'][planta_ingrediente].keys():
                 var = variables['inventario_planta'][planta_ingrediente][ultimo_periodo]
-                
+
                 rest_name = f'objetivo_{planta_ingrediente}_{ultimo_periodo.strftime("%Y%m%d")}'
-            
+
                 rest = (var >= objetivo, rest_name)
-                
+
                 rest_list.append(rest)
-    
+
     return rest_list
 
 
+def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, plantas_df: pd.DataFrame):
 
+    # Cantidad CPU habilitadas para trabajar
+    cpu_count = max(1, os.cpu_count()-1)
 
-def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plantas_df:pd.DataFrame):
-    
-    
+    # Gap en millones de pesos
+    gap = 5000000
+    # Tiempo máximo de detencion en minutos
+    t_limit_minutes = 5
+
     # Armar el modelo
-    func_obj = generar_funcion_objetivo(variables, periodos, cargas_df, plantas_df)
+    func_obj = generar_funcion_objetivo(
+        variables, periodos, cargas_df, plantas_df)
 
-    rest_balance_puerto = generar_res_balance_masa_cargas(variables, periodos, cargas_df)
-    
-    rest_balance_planta = generar_res_balance_masa_plantas(variables, periodos, plantas_df)
-    
-    rest_capacidad_recepcion =  generar_res_capacidad_recepcion_plantas(variables, plantas_df)
-    
-    rest_objetivo_inventario = generar_res_objetivo_fin_mes(variables, periodos)
-    
+    rest_balance_puerto = generar_res_balance_masa_cargas(
+        variables, periodos, cargas_df)
+
+    rest_balance_planta = generar_res_balance_masa_plantas(
+        variables, periodos, plantas_df)
+
+    rest_capacidad_recepcion = generar_res_capacidad_recepcion_plantas(
+        variables, plantas_df)
+
+    rest_objetivo_inventario = generar_res_objetivo_fin_mes(
+        variables, periodos)
+
     problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
 
     # Agregando funcion objetivo
     problema += pu.lpSum(func_obj)
-    
+
     # Agregando balance de masa puerto
     for rest in rest_balance_puerto:
         problema += rest
-    
+
     # Agregando balande ce masa en planta
     for rest in rest_balance_planta:
         problema += rest
-        
-    # Agregando restriccion de receocion
-    for rest in rest_capacidad_recepcion:
-        problema += rest
-        
-    # Agregando restriccion de objetivo de inventario
-    for rest in rest_objetivo_inventario:
-        problema += rest
-       
-    # Cantidad CPU habilitadas para trabajar
-    cpu_count = max(1, os.cpu_count()-1)
-    
-    # Gap en millones de pesos
-    gap = 5000000    
-    # Tiempo máximo de detencion en minutos
-    t_limit_minutes = 10  
-        
+
+    print('Ejecutando modelo fase 1')
     print('cpu count', cpu_count)
     print('tiempo limite', t_limit_minutes, 'minutos')
     print('ejecutando ', len(periodos), 'periodos')
-    
     print('GAP tolerable', gap, 'millones de pesos')
-    
+
     engine = pu.PULP_CBC_CMD(
         timeLimit=60*t_limit_minutes,
         gapAbs=gap,
+        gapRel=0.05,
+        warmStart=False,
+        cuts=True,
+        presolve=True,
+        threads=cpu_count)
+
+    problema.solve(solver=engine)
+
+    print('Ejecutando modelo fase 2')
+    # Agregando restriccion de receocion
+    for rest in rest_capacidad_recepcion:
+        problema += rest
+
+    print('cpu count', cpu_count)
+    print('tiempo limite', t_limit_minutes, 'minutos')
+    print('ejecutando ', len(periodos), 'periodos')
+    print('GAP tolerable', gap, 'millones de pesos')
+
+    engine = pu.PULP_CBC_CMD(
+        timeLimit=60*t_limit_minutes,
+        gapAbs=gap,
+        gapRel=0.05,
         warmStart=True,
         cuts=True,
         presolve=True,
         threads=cpu_count)
-    
+
+    problema.solve(solver=engine)
+
+    print('Ejecutando modelo fase 3')
+    # Agregando restriccion de objetivo de inventario
+    for rest in rest_objetivo_inventario:
+        problema += rest
+
+    print('cpu count', cpu_count)
+    print('tiempo limite', t_limit_minutes, 'minutos')
+    print('ejecutando ', len(periodos), 'periodos')
+    print('GAP tolerable', gap, 'millones de pesos')
+
+    engine = pu.PULP_CBC_CMD(
+        timeLimit=60*t_limit_minutes,
+        gapAbs=gap,
+        gapRel=0.05,
+        warmStart=True,
+        cuts=True,
+        presolve=True,
+        threads=cpu_count)
+
     problema.solve(solver=engine)
 
 
+def generar_reporte(plantas_df: pd.DataFrame, cargas_df: pd.DataFrame, variables: dict):
 
-
-
-
-def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:dict):
-    
     # Remplazar valores en plantas_df y en cargas_df
     print('Generando reporte:')
-    
-    
-    
+
     print('actualizando informacion de plantas')
     columns = list(plantas_df.columns)
-    
+
     for i in tqdm(range(plantas_df.shape[0])):
         planta = plantas_df.iloc[i]['planta']
         ingrediente = plantas_df.iloc[i]['ingrediente']
         variable = plantas_df.iloc[i]['variable']
-        
+
         # Variables de inventario de plantas
         if variable == 'inventario':
             inventarios = variables['inventario_planta']
@@ -653,8 +690,8 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
             if key in inventarios.keys():
                 for periodo, lp_var in inventarios[key].items():
                     nuevo_valor = lp_var.varValue
-                    plantas_df.iloc[i,columns.index(periodo)] = nuevo_valor
-    
+                    plantas_df.iloc[i, columns.index(periodo)] = nuevo_valor
+
         # Variables de backorder de plantas
         if variable == 'backorder':
             inventarios = variables['backorder']
@@ -662,10 +699,10 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
             if key in inventarios.keys():
                 for periodo, lp_var in inventarios[key].items():
                     nuevo_valor = lp_var.varValue
-                    plantas_df.iloc[i,columns.index(periodo)] = nuevo_valor
-    
+                    plantas_df.iloc[i, columns.index(periodo)] = nuevo_valor
+
     # Llegadas a planta
-    print('Agregando datos de recepción al reporte de plantas')        
+    print('Agregando datos de recepción al reporte de plantas')
     recibos = list()
     for planta in tqdm(variables['recepcion'].keys()):
         for ingrediente in variables['recepcion'][planta].keys():
@@ -673,33 +710,34 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
                 for llegada in variables['recepcion'][planta][ingrediente][periodo]:
                     cantidad_llegada = llegada.varValue
                     periodo_llegada = periodo - timedelta(days=2)
-                    importacion = llegada.name.replace(f'despacho_{ingrediente}_', '')
+                    importacion = llegada.name.replace(
+                        f'despacho_{ingrediente}_', '')
                     importacion = importacion.replace(f'_{planta}', '')
-                    importacion = importacion.replace(f'_{periodo_llegada.strftime("%Y%m%d")}', '')
+                    importacion = importacion.replace(
+                        f'_{periodo_llegada.strftime("%Y%m%d")}', '')
                     if cantidad_llegada > 0:
-                        recibos.append({'planta':planta, 
-                                        'ingrediente':ingrediente,
+                        recibos.append({'planta': planta,
+                                        'ingrediente': ingrediente,
                                         'variable': f'llegadas {importacion}',
-                                        periodo:cantidad_llegada*34000})
-                        
+                                        periodo: cantidad_llegada*34000})
+
     recibos_df = pd.DataFrame(recibos)
     group_by = ['planta', 'ingrediente', 'variable']
-    recibos_df =  recibos_df.groupby(group_by).sum().reset_index()
+    recibos_df = recibos_df.groupby(group_by).sum().reset_index()
     plantas_df = pd.concat([plantas_df, recibos_df]).copy()
-    
-    
+
     # Despachos de cargas
     print('Actualizando reporte de cargas')
     columns = list(cargas_df.columns)
     for i in tqdm(range(cargas_df.shape[0])):
-        
+
         ingrediente = cargas_df.iloc[i]['ingrediente']
         importacion = cargas_df.iloc[i]['importacion']
         empresa = cargas_df.iloc[i]['empresa']
         puerto = cargas_df.iloc[i]['puerto']
         operador = cargas_df.iloc[i]['operador']
         variable = cargas_df.iloc[i]['variable']
-                    
+
         # Variables de inventario de cargas
         if variable == 'inventario':
             inventarios = variables['inventario_puerto']
@@ -707,21 +745,20 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
             if key in inventarios.keys():
                 for periodo, lp_var in inventarios[key].items():
                     nuevo_valor = lp_var.varValue
-                    valor_anterior = cargas_df.iloc[i,columns.index(periodo)]
-                    cargas_df.iloc[i,columns.index(periodo)] = nuevo_valor
-                    print(planta,ingrediente, periodo, valor_anterior, nuevo_valor)
-                    
-              
-    return (plantas_df, cargas_df)
-      
+                    # valor_anterior = cargas_df.iloc[i,columns.index(periodo)]
+                    cargas_df.iloc[i, columns.index(periodo)] = nuevo_valor
 
-def guardar_reporte(bios_ouput_file:str, plantas_df:pd.DataFrame, cargas_df:pd.DataFrame, estadisticas:pd.DataFrame):
+    return (plantas_df, cargas_df)
+
+
+def guardar_reporte(bios_ouput_file: str, plantas_df: pd.DataFrame, cargas_df: pd.DataFrame, estadisticas: pd.DataFrame):
 
     print('guardando', bios_ouput_file)
     with pd.ExcelWriter(path=bios_ouput_file) as writer:
         plantas_df.to_excel(writer, sheet_name='plantas', index=False)
         cargas_df.to_excel(writer, sheet_name='cargas', index=False)
-        estadisticas['objetivo_inventario'].to_excel(writer, sheet_name='objetivo_inventario', index=False)
+        estadisticas['objetivo_inventario'].to_excel(
+            writer, sheet_name='objetivo_inventario', index=False)
     print(bios_ouput_file, 'guardado exitósamente')
 
 
@@ -747,8 +784,6 @@ def generar_modelo(bios_input_file: str):
     plantas_df = validacion_eliminar_ingredientes_sin_consumo(
         plantas_df, validation_list)
 
-
-
     generar_variables_despacho(periodos, cargas_df, plantas_df, variables)
 
     generar_variables_inventario_puerto(variables, periodos, cargas_df)
@@ -757,20 +792,20 @@ def generar_modelo(bios_input_file: str):
 
     generar_variables_backorder_planta(variables, periodos, plantas_df)
 
-    generar_Variables_safety_stock_planta(variables, periodos, plantas_df)       
-    
+    generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
+
     return plantas_df, cargas_df, estadisticas, periodos, variables
-    
 
 
 if __name__ == '__main__':
 
     bios_input_file = 'data/0_model_template_2204.xlsm'
-    
+
     bios_ouput_file = bios_input_file.replace('.xlsm', '_model.xlsx')
 
-    plantas_df, cargas_df, estadisticas, periodos, variables = generar_modelo(bios_input_file)
-    
+    plantas_df, cargas_df, estadisticas, periodos, variables = generar_modelo(
+        bios_input_file)
+
     resolver_modelo(variables, periodos, cargas_df, plantas_df)
 
     plantas_df, cargas_df = generar_reporte(plantas_df, cargas_df, variables)

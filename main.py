@@ -492,8 +492,43 @@ def generar_res_balance_masa_plantas(variables: dict, periodos: list, plantas_df
     return rest_list
 
 
-def generar_res_capacidad_recepcion_plantas() -> list:
-    pass
+def generar_res_capacidad_recepcion_plantas(variables:list, plantas_df:pd.DataFrame) -> list:
+    
+    rest_list = list()
+    
+    # Despachos hacia plantas
+    llegadas_planta = list()
+    
+    for periodo in tqdm(periodos):
+        
+        for planta in variables['recepcion'].keys():
+            
+            rest_name = f'tiempo_recepcion_{planta}_{periodo.strftime("%Y%m%d")}'
+            left_expresion = list()
+            
+            minutos_totales_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']=='total')&(plantas_df['variable']=='capacidad_total_minutos_dia')]              
+            minutos_totales = minutos_totales_row.iloc[0][periodo]
+            
+            
+            for ingrediente in variables['recepcion'][planta].keys():
+                
+                minutos_ingrediente_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='minutos_por_ingrediente')]              
+                minutos_ingrediente = minutos_ingrediente_row.iloc[0][periodo]
+                
+                if periodo in variables['recepcion'][planta][ingrediente].keys():
+                    
+                    llegadas = variables['recepcion'][planta][ingrediente][periodo]
+                    
+                    for llegada in llegadas:
+                    
+                        left_expresion.append(float(minutos_ingrediente)*llegada)
+                    
+                    for variable in variables['recepcion'][planta][ingrediente][periodo]:
+                        llegadas_planta.append(variable)
+        
+        rest= (pu.lpSum(left_expresion) <= minutos_totales, rest_name)
+        
+        rest_list.append(rest)
 
 
 def generar_res_superar_ss() -> list:
@@ -516,7 +551,7 @@ def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plant
     
     rest_balance_planta = generar_res_balance_masa_plantas(variables, periodos, plantas_df)
     
-    
+    rest_capacidad_recepcion =  generar_res_capacidad_recepcion_plantas(variables, plantas_df)
     
     problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
 
@@ -530,6 +565,10 @@ def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plant
     # Agregando balande ce masa en planta
     for rest in rest_balance_planta:
         problema += rest
+        
+    # Agregando restriccion de receocion
+    for rest in rest_capacidad_recepcion:
+        problema += rest
        
     # Cantidad CPU habilitadas para trabajar
     cpu_count = max(1, os.cpu_count()-1)
@@ -537,7 +576,7 @@ def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plant
     # Gap en millones de pesos
     gap = 5000000    
     # Tiempo máximo de detencion en minutos
-    t_limit_minutes = 20  
+    t_limit_minutes = 10  
         
     print('cpu count', cpu_count)
     print('tiempo limite', t_limit_minutes, 'minutos')
@@ -548,7 +587,7 @@ def resolver_modelo(variables:dict, periodos:list, cargas_df:pd.DataFrame, plant
     engine = pu.PULP_CBC_CMD(
         timeLimit=60*t_limit_minutes,
         gapAbs=gap,
-        warmStart=True,
+        warmStart=False,
         cuts=True,
         presolve=True,
         threads=cpu_count)
@@ -599,9 +638,10 @@ def generar_reporte(plantas_df:pd.DataFrame,cargas_df:pd.DataFrame, variables:di
             for periodo in variables['recepcion'][planta][ingrediente].keys():
                 for llegada in variables['recepcion'][planta][ingrediente][periodo]:
                     cantidad_llegada = llegada.varValue
+                    periodo_llegada = periodo - timedelta(days=2)
                     importacion = llegada.name.replace(f'despacho_{ingrediente}_', '')
                     importacion = importacion.replace(f'_{planta}', '')
-                    importacion = importacion.replace(f'_{periodo.strftime("%Y%m%d")}', '')
+                    importacion = importacion.replace(f'_{periodo_llegada.strftime("%Y%m%d")}', '')
                     print(planta, importacion, periodo, cantidad_llegada)
                     if cantidad_llegada > 0:
                         recibos.append({'planta':planta, 
@@ -697,6 +737,6 @@ if __name__ == '__main__':
 
     plantas_df, cargas_df = generar_reporte(plantas_df, cargas_df, variables)
 
-    plantas_df, cargas_df, guardar_reporte(bios_ouput_file, plantas_df, cargas_df, estadisticas)
+    guardar_reporte(bios_ouput_file, plantas_df, cargas_df, estadisticas)
 
     print('finalizado')

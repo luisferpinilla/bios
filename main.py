@@ -173,7 +173,7 @@ def generar_variables_inventario_planta(variables: dict, periodos: list, plantas
                                     cat=pu.LpContinuous)
 
                 var.setInitialValue(val=inventario, check=True)
-
+                
                 variables_inventario[var_group][periodo] = var
 
     variables['inventario_planta'] = variables_inventario
@@ -539,11 +539,45 @@ def generar_res_capacidad_recepcion_plantas(variables: list, plantas_df: pd.Data
     return rest_list
 
 
-def generar_res_superar_ss() -> list:
-    pass
+def generar_res_superar_ss(variables:list, plantas_df:pd.DataFrame) -> list:
+    
+    rest_list = list()
+    
+    for planta_ingrediente in variables['inventario_planta'].keys():
+        
+        planta = planta_ingrediente.split('_')[0]
+        ingrediente = planta_ingrediente.split('_')[1]
+        
+        for periodo, inventario_var in variables['inventario_planta'][planta_ingrediente].items():
+            
+            if f'safety_stock_{planta_ingrediente}' in variables['safety_sotck'].keys():
+                
+                if len(variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'])>0:
+                    
+                    if periodo in variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'].keys():
+                    
+                        ss_var = variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'][periodo]
+        
+                        safety_sotck_row = plantas_df[(plantas_df['planta']==planta)&(plantas_df['ingrediente']==ingrediente)&(plantas_df['variable']=='safety_stock')]
+                        
+                        if safety_sotck_row.shape[0]>0:
+                            
+                            ss = safety_sotck_row.iloc[0][periodo]
+    
+                            if ss > 0:                        
+    
+                                rest_name = f'cumplir_ss_{planta}_{ingrediente}_{periodo.strftime("%Y%m%d")}'
+                                
+                                rest = (inventario_var + ss_var >= ss, rest_name)
+                                
+                                rest_list.append(rest)
+    
+    return rest_list
+    
+    
 
 
-def generar_res_objetivo_fin_mes(variables: dict, periodos: list) -> list:
+def generar_res_objetivo_fin_mes(variables: dict, periodos: list, porcentaje_obj=0.0) -> list:
 
     rest_list = list()
 
@@ -564,7 +598,7 @@ def generar_res_objetivo_fin_mes(variables: dict, periodos: list) -> list:
 
                 rest_name = f'objetivo_{planta_ingrediente}_{ultimo_periodo.strftime("%Y%m%d")}'
 
-                rest = (var >= objetivo, rest_name)
+                rest = (var >= porcentaje_obj*objetivo, rest_name)
 
                 rest_list.append(rest)
 
@@ -579,7 +613,7 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     # Gap en millones de pesos
     gap = 5000000
     # Tiempo máximo de detencion en minutos
-    t_limit_minutes = 5
+    t_limit_minutes = 10
 
     # Armar el modelo
     func_obj = generar_funcion_objetivo(
@@ -594,8 +628,13 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     rest_capacidad_recepcion = generar_res_capacidad_recepcion_plantas(
         variables, plantas_df)
 
-    rest_objetivo_inventario = generar_res_objetivo_fin_mes(
-        variables, periodos)
+    rest_objetivo_inventario_025 = generar_res_objetivo_fin_mes(variables, periodos, 0.25)
+    rest_objetivo_inventario_050 = generar_res_objetivo_fin_mes(variables, periodos, 0.25)
+    rest_objetivo_inventario_075 = generar_res_objetivo_fin_mes(variables, periodos, 0.25)
+    rest_objetivo_inventario_100 = generar_res_objetivo_fin_mes(variables, periodos, 1.00)
+    
+
+    
 
     problema = pu.LpProblem(name='Bios_Solver', sense=pu.LpMinimize)
 
@@ -620,7 +659,7 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
         timeLimit=60*t_limit_minutes,
         gapAbs=gap,
         gapRel=0.05,
-        warmStart=False,
+        warmStart=True,
         cuts=True,
         presolve=True,
         threads=cpu_count)
@@ -650,7 +689,7 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
 
     print('Ejecutando modelo fase 3')
     # Agregando restriccion de objetivo de inventario
-    for rest in rest_objetivo_inventario:
+    for rest in rest_objetivo_inventario_050:
         problema += rest
 
     print('cpu count', cpu_count)

@@ -555,29 +555,37 @@ def generar_res_superar_ss(variables: list, plantas_df: pd.DataFrame) -> list:
 
         for periodo, inventario_var in variables['inventario_planta'][planta_ingrediente].items():
 
-            if f'safety_stock_{planta_ingrediente}' in variables['safety_sotck'].keys():
+            if planta in variables['recepcion'].keys():
+                
+                if ingrediente in variables['recepcion'][planta].keys():
+                    
+                    if periodo in variables['recepcion'][planta][ingrediente].keys():
+                        
+                        if len(variables['recepcion'][planta][ingrediente][periodo])>0:
 
-                if len(variables['safety_sotck'][f'safety_stock_{planta_ingrediente}']) > 0:
-
-                    if periodo in variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'].keys():
-
-                        ss_var = variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'][periodo]
-
-                        safety_sotck_row = plantas_df[(plantas_df['planta'] == planta) & (
-                            plantas_df['ingrediente'] == ingrediente) & (plantas_df['variable'] == 'safety_stock')]
-
-                        if safety_sotck_row.shape[0] > 0:
-
-                            ss = safety_sotck_row.iloc[0][periodo]
-
-                            if ss > 0:
-
-                                rest_name = f'cumplir_ss_{planta}_{ingrediente}_{periodo.strftime("%Y%m%d")}'
-
-                                rest = (inventario_var +
-                                        ss_var >= ss, rest_name)
-
-                                rest_list.append(rest)
+                            if f'safety_stock_{planta_ingrediente}' in variables['safety_sotck'].keys():
+                
+                                if len(variables['safety_sotck'][f'safety_stock_{planta_ingrediente}']) > 0:
+                                    print('incluir SS en', planta, ingrediente, periodo)
+                                    if periodo in variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'].keys():
+                
+                                        ss_var = variables['safety_sotck'][f'safety_stock_{planta_ingrediente}'][periodo]
+                
+                                        safety_sotck_row = plantas_df[(plantas_df['planta'] == planta) & (
+                                            plantas_df['ingrediente'] == ingrediente) & (plantas_df['variable'] == 'safety_stock')]
+                
+                                        if safety_sotck_row.shape[0] > 0:
+                
+                                            ss = safety_sotck_row.iloc[0][periodo]
+                
+                                            if ss > 0:
+                
+                                                rest_name = f'cumplir_ss_{planta}_{ingrediente}_{periodo.strftime("%Y%m%d")}'
+                
+                                                rest = (inventario_var +
+                                                        ss_var >= ss, rest_name)
+                
+                                                rest_list.append(rest)
 
     return rest_list
 
@@ -668,6 +676,8 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     rest_capacidad_recepcion = generar_res_capacidad_recepcion_plantas(
         variables, plantas_df, periodos)
 
+    rest_safety_stock = generar_res_superar_ss(variables, plantas_df)
+
     rest_objetivo_inventario_025 = generar_res_objetivo_fin_mes(
         plantas_df, variables, periodos, 0.25)
     rest_objetivo_inventario_050 = generar_res_objetivo_fin_mes(
@@ -690,47 +700,51 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     for rest in rest_balance_planta:
         problema += rest
 
-    print('Ejecutando modelo fase 1')
-    print('cpu count', cpu_count)
-    print('tiempo limite', t_limit_minutes, 'minutos')
-    print('ejecutando ', len(periodos), 'periodos')
-    print('GAP tolerable', gap, 'millones de pesos')
 
     engine = pu.PULP_CBC_CMD(
-        timeLimit=60*t_limit_minutes,
-        gapAbs=gap,
-        gapRel=0.10,
+        timeLimit=300,
+        # gapAbs=gap,
+        gapRel=0.01,
         warmStart=True,
-        cuts=True,
-        presolve=True,
+        # cuts=True,
+        # presolve=True,
         threads=cpu_count)
 
+    print('Resolviendo fase 1: balances de inventario')
     problema.solve(solver=engine)
+    print('fin fase 1')
 
 
-'''
-    print('Ejecutando modelo fase 2')
-    # Agregando restriccion de objetivo de inventario
-    for rest in rest_objetivo_inventario_050:
+    print('resolviendo la fase 2: inventario de seguridad')
+    # Agregando cumplimiento de inventario de seguridad
+    for rest in rest_safety_stock:
         problema += rest
 
-    print('cpu count', cpu_count)
-    print('tiempo limite', t_limit_minutes, 'minutos')
-    print('ejecutando ', len(periodos), 'periodos')
-    print('GAP tolerable', gap, 'millones de pesos')
-
     engine = pu.PULP_CBC_CMD(
-        timeLimit=60*10,
-        gapAbs=gap,
-        gapRel=0.10,
+        timeLimit=300,
+        # gapAbs=gap,
+        gapRel=0.05,
         warmStart=True,
-        cuts=True,
-        presolve=True,
+        # cuts=True,
+        # presolve=True,
         threads=cpu_count)
 
     problema.solve(solver=engine)
-
-    # Agregando restriccion de recepcion
-    # for rest in rest_capacidad_recepcion:
-    #    problema += rest
-'''
+    print('fin fase 2')
+    
+    print('fase 3 capacidad de recepcion')
+    # Agregando capacidad de recepcion
+    for rest in rest_capacidad_recepcion:
+        problema += rest
+        
+    engine = pu.PULP_CBC_CMD(
+            timeLimit=300,
+            # gapAbs=gap,
+            gapRel=0.05,
+            warmStart=True,
+            # cuts=True,
+            # presolve=True,
+            threads=cpu_count)
+    
+    problema.solve(solver=engine)
+    print('fin fase 2')

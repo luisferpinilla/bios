@@ -169,3 +169,6 @@ reports/*.xlsm
 borrame.*
 deleteme.*
 .DS_Store
+
+# Database
+db_data/

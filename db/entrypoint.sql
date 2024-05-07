@@ -84,3 +84,13 @@ CREATE TABLE IF NOT EXISTS fletes
     FOREIGN KEY (id_planta) REFERENCES plantas(id)
 );
 
+CREATE TABLE IF NOT EXISTS safety_stocks
+(
+	id_planta INT NOT NULL,
+    id_ingrediente INT NOT NULL,
+    dias_safety_stock INT NOT NULL DEFAULT 0,
+    PRIMARY KEY(id_planta, id_ingrediente),
+    FOREIGN KEY(id_planta) REFERENCES plantas(id),
+    FOREIGN KEY(id_ingrediente) REFERENCES ingredientes(id)
+); 
+

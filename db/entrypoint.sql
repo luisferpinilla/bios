@@ -124,3 +124,12 @@ CREATE TABLE IF NOT EXISTS consumo_proyectado
     FOREIGN KEY (id_planta) REFERENCES plantas(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 );
+
+CREATE TABLE IF NOT EXISTS inventario_planta
+(
+    id_file INT NOT NULL PRIMARY KEY,
+    id_unidad_ingrediente INT NOT NULL,
+    inventario_kg INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (id_file) REFERENCES files(id),
+    FOREIGN KEY (id_unidad_ingrediente) REFERENCES unidades_ingredientes(id)
+);

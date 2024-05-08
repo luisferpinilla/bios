@@ -173,3 +173,12 @@ CREATE TABLE IF NOT EXISTS transitos_puerto
     PRIMARY KEY(id_importacion, fecha_descarge),
     FOREIGN KEY (id_importacion) REFERENCES importaciones(id)
 );
+
+CREATE TABLE IF NOT EXISTS costos_almacenamiento_puerto
+(
+	id_importacion INT NOT NULL,
+    fecha_cobro DATE NOT NULL,
+    valor_a_cobrar_kg DECIMAL(10,2) NOT NULL,
+    PRIMARY KEY(id_importacion, fecha_cobro),
+    FOREIGN KEY (id_importacion) REFERENCES importaciones(id)
+);

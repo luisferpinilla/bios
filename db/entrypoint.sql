@@ -5,9 +5,13 @@ USE bios;
 CREATE TABLE IF NOT EXISTS empresas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(15) NOT NULL,
-    capacidad_recepcion_min_dia INT NOT NULL DEFAULT 0,
-    tiempo_limpieza_min_dia INT NOT NULL DEFAULT 0,
     UNIQUE (name)
+);
+
+CREATE TABLE IF NOT EXISTS ingredientes
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(15) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS intercompanies
@@ -23,10 +27,12 @@ CREATE TABLE IF NOT EXISTS intercompanies
 CREATE TABLE IF NOT EXISTS plantas
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
     name VARCHAR(15) NOT NULL,
     latitude DECIMAL(10, 8) NULL,
     longitude DECIMAL(11, 8) NULL,
-    id_empresa INT NOT NULL,
+    capacidad_recepcion_min_dia INT NOT NULL DEFAULT 0,
+    tiempo_limpieza_min_dia INT NOT NULL DEFAULT 0,
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
     UNIQUE (name)
 );
@@ -46,12 +52,6 @@ CREATE TABLE IF NOT EXISTS unidades
     id_planta INT NOT NULL,
     name VARCHAR(10) NOT NULL,
     FOREIGN KEY (id_planta) REFERENCES plantas(id)
-);
-
-CREATE TABLE IF NOT EXISTS ingredientes
-(
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(15) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS unidades_ingredientes

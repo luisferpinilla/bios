@@ -106,6 +106,13 @@ CREATE TABLE IF NOT EXISTS costos_portuarios
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 ); 
 
+CREATE TABLE IF NOT EXISTS files
+(
+	id INT NOT NULL PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL UNIQUE,
+    upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP()
+);
+
 CREATE TABLE IF NOT EXISTS consumo_proyectado
 (
     id_file INT NOT NULL,
@@ -113,7 +120,7 @@ CREATE TABLE IF NOT EXISTS consumo_proyectado
     id_ingrediente INT NOT NULL,
     fecha_consumo INT NOT NULL,
     PRIMARY KEY(id_file, id_planta, id_ingrediente, fecha_consumo),
+    FOREIGN KEY (id_file) REFERENCES files(id),
     FOREIGN KEY (id_planta) REFERENCES plantas(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 );
-

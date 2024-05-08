@@ -133,3 +133,43 @@ CREATE TABLE IF NOT EXISTS inventario_planta
     FOREIGN KEY (id_file) REFERENCES files(id),
     FOREIGN KEY (id_unidad_ingrediente) REFERENCES unidades_ingredientes(id)
 );
+
+CREATE TABLE IF NOT EXISTS transitos_planta
+(
+    id_file INT NOT NULL PRIMARY KEY,
+    id_planta INT NOT NULL,
+    id_ingrediente INT NOT NULL,
+    fecha_llegada DATE NOT NULL,
+    UNIQUE(id_file, id_planta, id_ingrediente, fecha_llegada),
+    FOREIGN KEY (id_file) REFERENCES files(id),
+    FOREIGN KEY (id_planta) REFERENCES plantas(id),
+    FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
+);
+
+CREATE TABLE IF NOT EXISTS importaciones
+(
+	id INT AUTO_INCREMENT PRIMARY KEY,
+	id_file INT NOT NULL,
+    id_empresa INT NOT NULL,
+    id_puerto INT NOT NULL,
+    id_operador INT NOT NULL,
+    id_ingrediente INT NOT NULL,
+    importacion VARCHAR(50) NOT NULL,
+    cantidad_puerto_kg INT NOT NULL DEFAULT 0,
+    fecha_llegada DATE NOT NULL,
+    UNIQUE(id_file, id_empresa, id_puerto, id_operador, id_ingrediente, fecha_llegada),
+    FOREIGN KEY (id_file) REFERENCES files(id),
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_puerto) REFERENCES puertos(id),
+    FOREIGN KEY (id_operador) REFERENCES operadores(id),
+    FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
+);
+
+CREATE TABLE IF NOT EXISTS transitos_puerto
+(
+	id_importacion INT NOT NULL,
+    fecha_descarge DATE NOT NULL,
+    cantidad INT NOT NULL DEFAULT 5000000,
+    PRIMARY KEY(id_importacion, fecha_descarge),
+    FOREIGN KEY (id_importacion) REFERENCES importaciones(id)
+);

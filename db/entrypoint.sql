@@ -94,3 +94,15 @@ CREATE TABLE IF NOT EXISTS safety_stocks
     FOREIGN KEY(id_ingrediente) REFERENCES ingredientes(id)
 ); 
 
+CREATE TABLE IF NOT EXISTS costos_portuarios
+(
+	id_operador INT NOT NULL,
+    id_puerto INT NOT NULL,
+    id_ingrediente INT NOT NULL,
+    tipo_operacion ENUM('directo', 'bodega'),
+    PRIMARY KEY(id_operador, id_puerto, id_ingrediente, tipo_operacion),
+    FOREIGN KEY (id_operador) REFERENCES operadores(id),
+    FOREIGN KEY (id_puerto) REFERENCES puertos(id),
+    FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
+); 
+

@@ -5,6 +5,8 @@ USE bios;
 CREATE TABLE IF NOT EXISTS empresas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(15) NOT NULL,
+    capacidad_recepcion_min_dia INT NOT NULL DEFAULT 0,
+    tiempo_limpieza_min_dia INT NOT NULL DEFAULT 0,
     UNIQUE (name)
 );
 
@@ -27,6 +29,15 @@ CREATE TABLE IF NOT EXISTS plantas
     id_empresa INT NOT NULL,
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
     UNIQUE (name)
+);
+
+CREATE TABLE IF NOT EXISTS tiempo_descargue_planta
+(
+    id_planta INT NOT NULL,
+    id_ingrediente INT NOT NULL,
+    PRIMARY KEY(id_planta, id_ingrediente),
+    FOREIGN KEY (id_planta) REFERENCES plantas(id),
+    FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 );
 
 CREATE TABLE IF NOT EXISTS unidades

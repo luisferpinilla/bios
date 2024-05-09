@@ -1,5 +1,5 @@
 # coding: utf-8
-from sqlalchemy import Column, DECIMAL, Date, Enum, ForeignKey, Index, Integer, String, TIMESTAMP, text
+from sqlalchemy import Column, DECIMAL, Date, Enum, ForeignKey, Index, Integer, Float, String, TIMESTAMP, text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -59,7 +59,8 @@ class CostosPortuario(Base):
     id_puerto = Column(ForeignKey('puertos.id'), nullable=False, index=True)
     id_ingrediente = Column(ForeignKey('ingredientes.id'),
                             nullable=False, index=True)
-    tipo_operacion = Column(Enum('directo', 'bodega'))
+    tipo_operacion = Column(Enum('directo', 'bodega'), nullable=False)
+    valor_kg = Column(DECIMAL(10, 8), nullable=False)
 
 
 class Importacion(Base):
@@ -122,7 +123,8 @@ class ConsumoProyectado(Base):
     id_planta = Column(ForeignKey('plantas.id'), nullable=False, index=True)
     id_ingrediente = Column(ForeignKey('ingredientes.id'),
                             nullable=False, index=True)
-    fecha_consumo = Column(Integer, nullable=False)
+    fecha_consumo = Column(Date, nullable=False)
+    consumo_kg = Column(Float(asdecimal=True), nullable=False)
 
 
 class CostosAlmacenamientoPuerto(Base):
@@ -178,6 +180,7 @@ class TiempoDescarguePlanta(Base):
     id_planta = Column(ForeignKey('plantas.id'), nullable=False)
     id_ingrediente = Column(ForeignKey('ingredientes.id'),
                             nullable=False, index=True)
+    tiempo_minutos = Column(Integer, nullable=False)
 
 
 class TransitosPlanta(Base):

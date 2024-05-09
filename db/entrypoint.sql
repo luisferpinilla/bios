@@ -17,9 +17,9 @@ CREATE TABLE IF NOT EXISTS ingredientes
 CREATE TABLE IF NOT EXISTS intercompanies
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    id_empresa_origen INT,
-    id_empresa_destino INT,
-    valor_intercompany DECIMAL(10, 8),
+    id_empresa_origen INT NOT NULL,
+    id_empresa_destino INT NOT NULL,
+    valor_intercompany DECIMAL(10, 8) NOT NULL,
     UNIQUE (id_empresa_origen,id_empresa_destino),
     FOREIGN KEY (id_empresa_origen) REFERENCES empresas(id),
     FOREIGN KEY (id_empresa_destino) REFERENCES empresas(id)
@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS tiempo_descargue_planta
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_planta INT NOT NULL,
     id_ingrediente INT NOT NULL,
+    tiempo_minutos INT NOT NULL,
     UNIQUE(id_planta, id_ingrediente),
     FOREIGN KEY (id_planta) REFERENCES plantas(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
@@ -114,7 +115,8 @@ CREATE TABLE IF NOT EXISTS costos_portuarios
 	id_operador INT NOT NULL,
     id_puerto INT NOT NULL,
     id_ingrediente INT NOT NULL,
-    tipo_operacion ENUM('directo', 'bodega'),
+    tipo_operacion ENUM('directo', 'bodega') NOT NULL,
+    valor_kg DECIMAL(10, 8) NOT NULL,
     UNIQUE(id_operador, id_puerto, id_ingrediente, tipo_operacion),
     FOREIGN KEY (id_operador) REFERENCES operadores(id),
     FOREIGN KEY (id_puerto) REFERENCES puertos(id),
@@ -123,7 +125,7 @@ CREATE TABLE IF NOT EXISTS costos_portuarios
 
 CREATE TABLE IF NOT EXISTS files
 (
-	id INT NOT NULL PRIMARY KEY,
+	id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
     file_name VARCHAR(255) NOT NULL UNIQUE,
     upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP()
 );
@@ -134,7 +136,8 @@ CREATE TABLE IF NOT EXISTS consumo_proyectado
     id_file INT NOT NULL,
     id_planta INT NOT NULL,
     id_ingrediente INT NOT NULL,
-    fecha_consumo INT NOT NULL,
+    fecha_consumo DATE NOT NULL,
+    consumo_kg double NOT NULL,
     UNIQUE(id_file, id_planta, id_ingrediente, fecha_consumo),
     FOREIGN KEY (id_file) REFERENCES files(id),
     FOREIGN KEY (id_planta) REFERENCES plantas(id),

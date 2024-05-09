@@ -4,14 +4,40 @@ USE bios;
 
 CREATE TABLE IF NOT EXISTS empresas (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(15) NOT NULL,
-    UNIQUE (name)
+    nombre VARCHAR(15) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS ingredientes
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(15) NOT NULL UNIQUE
+    nombre VARCHAR(15) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS puertos
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(15) NOT NULL UNIQUE,
+    latitude DECIMAL(10, 8) NULL,
+    longitude DECIMAL(11, 8) NULL,
+    capacidad_descarga_kg_dia INT NOT NULL DEFAULT 5000000
+);
+
+CREATE TABLE IF NOT EXISTS operadores
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(15) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS plantas
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    nombre VARCHAR(15) NOT NULL UNIQUE,
+    latitude DECIMAL(10, 8) NULL,
+    longitude DECIMAL(11, 8) NULL,
+    capacidad_recepcion_min_dia INT NOT NULL DEFAULT 0,
+    tiempo_limpieza_min_dia INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id)
 );
 
 CREATE TABLE IF NOT EXISTS intercompanies
@@ -23,19 +49,6 @@ CREATE TABLE IF NOT EXISTS intercompanies
     UNIQUE (id_empresa_origen,id_empresa_destino),
     FOREIGN KEY (id_empresa_origen) REFERENCES empresas(id),
     FOREIGN KEY (id_empresa_destino) REFERENCES empresas(id)
-);
-
-CREATE TABLE IF NOT EXISTS plantas
-(
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_empresa INT NOT NULL,
-    nombre VARCHAR(15) NOT NULL,
-    latitude DECIMAL(10, 8) NULL,
-    longitude DECIMAL(11, 8) NULL,
-    capacidad_recepcion_min_dia INT NOT NULL DEFAULT 0,
-    tiempo_limpieza_min_dia INT NOT NULL DEFAULT 0,
-    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
-    UNIQUE (nombre)
 );
 
 CREATE TABLE IF NOT EXISTS tiempo_descargue_planta
@@ -54,6 +67,7 @@ CREATE TABLE IF NOT EXISTS unidades
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_planta INT NOT NULL,
     nombre VARCHAR(10) NOT NULL,
+    UNIQUE(id_planta, nombre),
     FOREIGN KEY (id_planta) REFERENCES plantas(id)
 );
 
@@ -66,21 +80,6 @@ CREATE TABLE IF NOT EXISTS unidades_ingredientes
     UNIQUE (id_unidad, id_ingrediente),
     FOREIGN KEY (id_unidad) REFERENCES unidades(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
-);
-
-CREATE TABLE IF NOT EXISTS puertos
-(
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(15) NOT NULL UNIQUE,
-    latitude DECIMAL(10, 8) NULL,
-    longitude DECIMAL(11, 8) NULL,
-    capacidad_descarga_kg_dia INT NOT NULL DEFAULT 5000000
-);
-
-CREATE TABLE IF NOT EXISTS operadores
-(
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(15) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS fletes
@@ -123,7 +122,7 @@ CREATE TABLE IF NOT EXISTS costos_portuarios
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 ); 
 
-CREATE TABLE IF NOT EXISTS files
+CREATE TABLE IF NOT EXISTS archivos
 (
 	id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
     file_name VARCHAR(255) NOT NULL UNIQUE,
@@ -133,37 +132,37 @@ CREATE TABLE IF NOT EXISTS files
 CREATE TABLE IF NOT EXISTS consumo_proyectado
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    id_file INT NOT NULL,
+    id_archivo INT NOT NULL,
     id_planta INT NOT NULL,
     id_ingrediente INT NOT NULL,
     fecha_consumo DATE NOT NULL,
     consumo_kg double NOT NULL,
-    UNIQUE(id_file, id_planta, id_ingrediente, fecha_consumo),
-    FOREIGN KEY (id_file) REFERENCES files(id),
+    UNIQUE(id_archivo, id_planta, id_ingrediente, fecha_consumo),
+    FOREIGN KEY (id_archivo) REFERENCES archivos(id),
     FOREIGN KEY (id_planta) REFERENCES plantas(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 );
 
 CREATE TABLE IF NOT EXISTS inventario_planta
 (
-    id INT NOT NULL PRIMARY KEY,
-    id_file INT NOT NULL,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_archivo INT NOT NULL,
     id_unidad_ingrediente INT NOT NULL,
     inventario_kg INT NOT NULL DEFAULT 0,
-    UNIQUE (id_file, id_unidad_ingrediente),
-    FOREIGN KEY (id_file) REFERENCES files(id),
+    UNIQUE (id_archivo, id_unidad_ingrediente),
+    FOREIGN KEY (id_archivo) REFERENCES archivos(id),
     FOREIGN KEY (id_unidad_ingrediente) REFERENCES unidades_ingredientes(id)
 );
 
 CREATE TABLE IF NOT EXISTS transitos_planta
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    id_file INT NOT NULL,
+    id_archivo INT NOT NULL,
     id_planta INT NOT NULL,
     id_ingrediente INT NOT NULL,
     fecha_llegada DATE NOT NULL,
-    UNIQUE(id_file, id_planta, id_ingrediente, fecha_llegada),
-    FOREIGN KEY (id_file) REFERENCES files(id),
+    UNIQUE(id_archivo, id_planta, id_ingrediente, fecha_llegada),
+    FOREIGN KEY (id_archivo) REFERENCES archivos(id),
     FOREIGN KEY (id_planta) REFERENCES plantas(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 );
@@ -171,7 +170,7 @@ CREATE TABLE IF NOT EXISTS transitos_planta
 CREATE TABLE IF NOT EXISTS importaciones
 (
 	id INT AUTO_INCREMENT PRIMARY KEY,
-	id_file INT NOT NULL,
+	id_archivo INT NOT NULL,
     id_empresa INT NOT NULL,
     id_puerto INT NOT NULL,
     id_operador INT NOT NULL,
@@ -179,8 +178,8 @@ CREATE TABLE IF NOT EXISTS importaciones
     importacion VARCHAR(50) NOT NULL,
     cantidad_puerto_kg INT NOT NULL DEFAULT 0,
     fecha_llegada DATE NOT NULL,
-    UNIQUE(id_file, id_empresa, id_puerto, id_operador, id_ingrediente, fecha_llegada),
-    FOREIGN KEY (id_file) REFERENCES files(id),
+    UNIQUE(id_archivo, id_empresa, id_puerto, id_operador, id_ingrediente, fecha_llegada),
+    FOREIGN KEY (id_archivo) REFERENCES archivos(id),
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
     FOREIGN KEY (id_puerto) REFERENCES puertos(id),
     FOREIGN KEY (id_operador) REFERENCES operadores(id),

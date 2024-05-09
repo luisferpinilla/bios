@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS files
 
 CREATE TABLE IF NOT EXISTS consumo_proyectado
 (
-    id INT NOT NULL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     id_file INT NOT NULL,
     id_planta INT NOT NULL,
     id_ingrediente INT NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS inventario_planta
 
 CREATE TABLE IF NOT EXISTS transitos_planta
 (
-    id INT NOT NULL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     id_file INT NOT NULL,
     id_planta INT NOT NULL,
     id_ingrediente INT NOT NULL,

@@ -74,7 +74,7 @@ class Importacione(Base):
     __tablename__ = 'importaciones'
     __table_args__ = (
         Index('id_archivo', 'id_archivo', 'id_empresa', 'id_puerto',
-              'id_operador', 'id_ingrediente', 'fecha_llegada', unique=True),
+              'id_operador', 'id_ingrediente', 'importacion', unique=True),
     )
 
     id = Column(Integer, primary_key=True)
@@ -86,9 +86,10 @@ class Importacione(Base):
     id_ingrediente = Column(ForeignKey('ingredientes.id'),
                             nullable=False, index=True)
     importacion = Column(String(50), nullable=False)
+    fecha_llegada = Column(Date, nullable=False)
     cantidad_puerto_kg = Column(
         Integer, nullable=False, server_default=text("'0'"))
-    fecha_llegada = Column(Date, nullable=False)
+    valor_kg = Column(DECIMAL(10, 2), nullable=False)
 
     archivo = relationship('Archivo')
     empresa = relationship('Empresa')

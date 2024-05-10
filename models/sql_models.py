@@ -234,6 +234,7 @@ class TransitosPlanta(Base):
     id_ingrediente = Column(ForeignKey('ingredientes.id'),
                             nullable=False, index=True)
     fecha_llegada = Column(Date, nullable=False)
+    cantidad = Column(Integer, nullable=False)
 
     archivo = relationship('Archivo')
     ingrediente = relationship('Ingrediente')

@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS transitos_planta
     id_planta INT NOT NULL,
     id_ingrediente INT NOT NULL,
     fecha_llegada DATE NOT NULL,
+    cantidad INT NOT NULL,
     UNIQUE(id_archivo, id_planta, id_ingrediente, fecha_llegada),
     FOREIGN KEY (id_archivo) REFERENCES archivos(id),
     FOREIGN KEY (id_planta) REFERENCES plantas(id),

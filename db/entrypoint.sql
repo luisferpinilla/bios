@@ -126,7 +126,8 @@ CREATE TABLE IF NOT EXISTS archivos
 (
 	id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
     file_name VARCHAR(255) NOT NULL UNIQUE,
-    upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP()
+    upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    status ENUM('loaded', 'validated', 'unfeasible', 'sub_obtimal', 'optimal')
 );
 
 CREATE TABLE IF NOT EXISTS consumo_proyectado

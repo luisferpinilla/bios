@@ -192,3 +192,46 @@ CREATE TABLE IF NOT EXISTS costos_almacenamiento_puerto
     UNIQUE(id_importacion, fecha_cobro),
     FOREIGN KEY (id_importacion) REFERENCES importaciones(id)
 );
+
+-- Lista de vistas
+
+-- Productos con nivel de seguridad pero sin consumo
+CREATE VIEW ingredientes_sin_consumo_y_con_ss AS
+SELECT pl.nombre AS nombre_planta, 
+	ing.nombre AS ingrediente, 
+    ifnull(ss.dias_safety_stock, 0) as SS, 
+    sum(cp.consumo_kg) as total_consumo 
+FROM consumo_proyectado cp
+LEFT JOIN plantas pl ON cp.id_planta = pl.id
+LEFT JOIN ingredientes ing ON cp.id_ingrediente = ing.id
+LEFT JOIN safety_stocks ss ON ss.id_ingrediente = ing.id AND ss.id_planta = cp.id 
+GROUP BY nombre_planta, ingrediente, SS
+HAVING total_consumo = 0 AND SS > 0;
+
+
+
+-- Inventario realmente en transito hacia el puerto
+CREATE VIEW inventario_en_transito_view AS
+SELECT 
+	i.id_archivo,
+	i.id_empresa,
+	e.nombre AS Empresa,
+	i.id_puerto ,
+	p.nombre AS Puerto,
+	i.id_operador,
+	o.nombre AS Operador,
+	i.id_ingrediente,
+	i2.nombre AS Ingrediente, 
+	i.importacion,
+	tp.fecha_descarge AS fecha_llegada,
+	i.valor_kg ,
+	tp.cantidad  AS cantidad_puerto_kg,
+	'transito' AS Status
+FROM transitos_puerto tp 
+JOIN importaciones i ON i.id = tp.id_importacion
+JOIN empresas e ON e.id=i.id_empresa 
+JOIN puertos p ON p.id=i.id_puerto 
+JOIN operadores o ON o.id=i.id_operador 
+JOIN ingredientes i2 ON i2.id=i.id_ingrediente
+HAVING tp.fecha_descarge > (SELECT DATE_SUB(MIN(cp.fecha_consumo), INTERVAL 1 DAY) FROM consumo_proyectado cp)
+

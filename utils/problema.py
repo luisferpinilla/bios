@@ -27,7 +27,7 @@ def _generar_dataframe_plantas(matriz: list) -> pd.DataFrame:
     return df
 
 
-def __leer_archivo(bios_input_file: str) -> dict:
+def leer_archivo(bios_input_file: str) -> dict:
 
     print('Leyendo archivo')
 
@@ -115,7 +115,8 @@ def __generar_capacidad_recepcion(dataframes: pd.DataFrame, periodos: list, matr
         limpieza['variable'] = 'minutos_limpieza'
 
         for periodo in periodos:
-            total[periodo] = float(capacidad_df.loc[i]['operacion_minutos']*capacidad_df.loc[i]['plataformas'])
+            total[periodo] = float(
+                capacidad_df.loc[i]['operacion_minutos']*capacidad_df.loc[i]['plataformas'])
             limpieza[periodo] = float(capacidad_df.loc[i]['minutos_limpieza'])
 
         matriz.append(total)
@@ -696,8 +697,11 @@ def _obtener_matriz_fletes_intercompany(matriz: list, periodos: list, dataframes
                 for periodo in periodos:
 
                     flete_kg[periodo] = flete.iloc[0][planta]
-                    intercompany[periodo] = intercompanies.loc[importacion[2]
-                                                               ][empresas[planta]]
+                    
+                    try:
+                        intercompany[periodo] = intercompanies.loc[importacion[2]][empresas[planta]]
+                    except:
+                        intercompany[periodo] = 0.0
 
                 matriz.append(flete_kg)
                 matriz.append(intercompany)
@@ -966,7 +970,7 @@ if __name__ == '__main__':
 
     bios_input_file = 'data/0_model_template_2204.xlsm'
 
-    dataframes = __leer_archivo(bios_input_file=bios_input_file)
+    dataframes = leer_archivo(bios_input_file=bios_input_file)
 
     periodos = __generar_periodos(dataframes)
 

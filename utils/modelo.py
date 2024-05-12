@@ -7,7 +7,7 @@ Created on Sun May  5 23:39:32 2024
 """
 
 import pandas as pd
-from utils.problema import __leer_archivo
+from utils.problema import leer_archivo
 from utils.problema import __generar_periodos
 from utils.problema import obtener_objetivo_inventario
 from utils.problema import obtener_matriz_plantas
@@ -618,13 +618,105 @@ def generar_res_objetivo_fin_mes(plantas_df: pd.DataFrame, variables: dict, peri
     return rest_list
 
 
-def generar_modelo(bios_input_file: str):
+def totalizar_inventario_puerto(dataframes:dict, periodos:list):
+
+    inventario_puerto = dataframes['inventario_puerto'].copy()
+   
+    df = inventario_puerto.groupby('ingrediente').agg({'cantidad_kg':'sum', 'valor_cif_kg':'mean'}).reset_index().copy()
+
+    df['importacion'] = 'all'
+    df['empresa'] = 'all'
+    df['operador'] = 'all'
+    df['puerto']= 'all'
+    df['fecha_llegada'] = periodos[0] - timedelta(days=1)
+    
+    df = df[inventario_puerto.columns]
+    
+    dataframes['inventario_puerto'] = df
+    
+def totalizar_transitos_puerto(dataframes:dict, periodos:list):
+    
+    tto_puerto = dataframes['tto_puerto'].copy()
+    
+    tto_puerto['total_costo'] = tto_puerto['cantidad_kg']*tto_puerto['valor_kg']
+    
+    df = tto_puerto.groupby(['ingrediente', 'fecha_llegada']).agg({'cantidad_kg':'sum', 'total_costo':'sum'}).reset_index()
+    
+    df['valor_kg'] = df['total_costo']/df['cantidad_kg']
+    df['importacion'] = 'all'
+    df['empresa'] = 'all'
+    df['operador'] = 'all'
+    df['puerto']= 'all'
+    
+    df = df[tto_puerto.columns]
+
+    dataframes['tto_puerto'] = df
+    
+def totalizar_fletes(dataframes:dict):
+    
+    fletes_cop_per_kg = dataframes['fletes_cop_per_kg'].copy()
+    
+    plantas_list = fletes_cop_per_kg.drop(columns=['puerto', 'operador', 'ingrediente']).columns
+
+    df = fletes_cop_per_kg.groupby('ingrediente')[plantas_list].mean().reset_index()
+    
+    df['puerto'] = 'all'
+    df['operador'] = 'all'
+    
+    df = df[fletes_cop_per_kg.columns]
+    
+    dataframes['fletes_cop_per_kg'] = df
+    
+def totalizar_costos_portuarios(dataframes:dict):
+    
+    costos_operacion_portuaria = dataframes['costos_operacion_portuaria'].copy()
+    
+    df = costos_operacion_portuaria.groupby(['tipo_operacion', 'ingrediente'])[['valor_kg']].sum().reset_index()
+    
+    df['operador'] = 'all'
+    df['puerto'] = 'all'
+    
+    df = df[costos_operacion_portuaria.columns]
+
+    dataframes['costos_operacion_portuaria'] = df 
+    
+    
+def totalizar_costos_almacenamiento(dataframes:dict):
+    
+    costos_almacenamiento_cargas = dataframes['costos_almacenamiento_cargas'].copy()
+    
+    df = costos_almacenamiento_cargas.drop(columns=['empresa', 'operador', 'puerto', 'importacion']).groupby(['ingrediente', 'fecha_corte'])[['valor_kg']].mean().reset_index()
+    df['importacion'] = 'all'
+    df['empresa'] = 'all'
+    df['operador'] = 'all'
+    df['puerto']= 'all'
+    
+    df = df[costos_almacenamiento_cargas.columns]
+    
+    dataframes['costos_almacenamiento_cargas'] = df
+    
+    
+
+
+def generar_modelo(bios_input_file: str, reducido=False):
 
     variables = dict()
 
-    dataframes = __leer_archivo(bios_input_file=bios_input_file)
-
+    dataframes = leer_archivo(bios_input_file=bios_input_file)
+    
     periodos = __generar_periodos(dataframes)
+    
+    if reducido:
+        
+        totalizar_inventario_puerto(dataframes, periodos)
+    
+        totalizar_transitos_puerto(dataframes, periodos)
+        
+        totalizar_fletes(dataframes)
+        
+        totalizar_costos_portuarios(dataframes)
+        
+        totalizar_costos_almacenamiento(dataframes)
 
     estadisticas = obtener_objetivo_inventario(bios_input_file)
 
@@ -651,6 +743,9 @@ def generar_modelo(bios_input_file: str):
     generar_Variables_safety_stock_planta(variables, periodos, plantas_df)
 
     return plantas_df, cargas_df, estadisticas, periodos, variables, validation_list
+
+
+
 
 
 def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, plantas_df: pd.DataFrame):
@@ -699,13 +794,20 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     # Agregando balande ce masa en planta
     for rest in rest_balance_planta:
         problema += rest
-
+    
+    """
+    for rest in rest_safety_stock:
+        problema += rest
+        
+    for rest in rest_capacidad_recepcion:
+        problema += rest
+    """
 
     engine = pu.PULP_CBC_CMD(
-        timeLimit=300,
+        #timeLimit=300,
         # gapAbs=gap,
-        gapRel=0.01,
-        warmStart=True,
+        #gapRel=0.01,
+        #warmStart=True,
         # cuts=True,
         # presolve=True,
         threads=cpu_count)
@@ -714,11 +816,11 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     problema.solve(solver=engine)
     print('fin fase 1')
 
+"""
 
     print('resolviendo la fase 2: inventario de seguridad')
     # Agregando cumplimiento de inventario de seguridad
-    for rest in rest_safety_stock:
-        problema += rest
+    
 
     engine = pu.PULP_CBC_CMD(
         timeLimit=300,
@@ -734,8 +836,7 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     
     print('fase 3 capacidad de recepcion')
     # Agregando capacidad de recepcion
-    for rest in rest_capacidad_recepcion:
-        problema += rest
+
         
     engine = pu.PULP_CBC_CMD(
             timeLimit=300,
@@ -748,3 +849,5 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     
     problema.solve(solver=engine)
     print('fin fase 2')
+    
+"""

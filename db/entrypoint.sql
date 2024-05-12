@@ -62,23 +62,26 @@ CREATE TABLE IF NOT EXISTS tiempo_descargue_planta
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 );
 
+CREATE TABLE IF NOT EXISTS archivos
+(
+	id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    file_name VARCHAR(255) NOT NULL UNIQUE,
+    upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    status ENUM('loaded', 'validated', 'unfeasible', 'sub_obtimal', 'optimal')
+);
+
 CREATE TABLE IF NOT EXISTS unidades
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    id_archivo INT NOT NULL,
     id_planta INT NOT NULL,
-    nombre VARCHAR(10) NOT NULL,
-    UNIQUE(id_planta, nombre),
-    FOREIGN KEY (id_planta) REFERENCES plantas(id)
-);
-
-CREATE TABLE IF NOT EXISTS unidades_ingredientes
-(
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_unidad INT NOT NULL,
     id_ingrediente INT NOT NULL,
+    nombre VARCHAR(10) NOT NULL,    
     capacidad INT NOT NULL,
-    UNIQUE (id_unidad, id_ingrediente),
-    FOREIGN KEY (id_unidad) REFERENCES unidades(id),
+    inventario INT NOT NULL,
+    UNIQUE (id_archivo, id_planta,id_ingrediente,nombre),
+    FOREIGN KEY (id_archivo) REFERENCES archivos(id),
+    FOREIGN KEY (id_planta) REFERENCES plantas(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 );
 
@@ -122,14 +125,6 @@ CREATE TABLE IF NOT EXISTS costos_portuarios
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
 ); 
 
-CREATE TABLE IF NOT EXISTS archivos
-(
-	id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-    file_name VARCHAR(255) NOT NULL UNIQUE,
-    upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
-    status ENUM('loaded', 'validated', 'unfeasible', 'sub_obtimal', 'optimal')
-);
-
 CREATE TABLE IF NOT EXISTS consumo_proyectado
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -142,17 +137,6 @@ CREATE TABLE IF NOT EXISTS consumo_proyectado
     FOREIGN KEY (id_archivo) REFERENCES archivos(id),
     FOREIGN KEY (id_planta) REFERENCES plantas(id),
     FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
-);
-
-CREATE TABLE IF NOT EXISTS inventario_planta
-(
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_archivo INT NOT NULL,
-    id_unidad_ingrediente INT NOT NULL,
-    inventario_kg INT NOT NULL DEFAULT 0,
-    UNIQUE (id_archivo, id_unidad_ingrediente),
-    FOREIGN KEY (id_archivo) REFERENCES archivos(id),
-    FOREIGN KEY (id_unidad_ingrediente) REFERENCES unidades_ingredientes(id)
 );
 
 CREATE TABLE IF NOT EXISTS transitos_planta

@@ -804,11 +804,19 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     for rest in rest_balance_planta:
         problema += rest
 
+    """
+    for rest in rest_safety_stock:
+        problema += rest
+        
+    for rest in rest_capacidad_recepcion:
+        problema += rest
+    """
+
     engine = pu.PULP_CBC_CMD(
-        timeLimit=300,
+        # timeLimit=300,
         # gapAbs=gap,
-        gapRel=0.01,
-        warmStart=True,
+        # gapRel=0.01,
+        # warmStart=True,
         # cuts=True,
         # presolve=True,
         threads=cpu_count)
@@ -817,10 +825,12 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
     problema.solve(solver=engine)
     print('fin fase 1')
 
+
+"""
+
     print('resolviendo la fase 2: inventario de seguridad')
     # Agregando cumplimiento de inventario de seguridad
-    for rest in rest_safety_stock:
-        problema += rest
+    
 
     engine = pu.PULP_CBC_CMD(
         timeLimit=300,
@@ -833,20 +843,21 @@ def resolver_modelo(variables: dict, periodos: list, cargas_df: pd.DataFrame, pl
 
     problema.solve(solver=engine)
     print('fin fase 2')
-
+    
     print('fase 3 capacidad de recepcion')
     # Agregando capacidad de recepcion
-    for rest in rest_capacidad_recepcion:
-        problema += rest
 
+        
     engine = pu.PULP_CBC_CMD(
-        timeLimit=300,
-        # gapAbs=gap,
-        gapRel=0.05,
-        warmStart=True,
-        # cuts=True,
-        # presolve=True,
-        threads=cpu_count)
-
+            timeLimit=300,
+            # gapAbs=gap,
+            gapRel=0.05,
+            warmStart=True,
+            # cuts=True,
+            # presolve=True,
+            threads=cpu_count)
+    
     problema.solve(solver=engine)
     print('fin fase 2')
+    
+"""

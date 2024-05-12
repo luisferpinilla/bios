@@ -261,43 +261,19 @@ class TransitosPuerto(Base):
 class Unidade(Base):
     __tablename__ = 'unidades'
     __table_args__ = (
-        Index('id_planta', 'id_planta', 'nombre', unique=True),
-    )
-
-    id = Column(Integer, primary_key=True)
-    id_planta = Column(ForeignKey('plantas.id'), nullable=False)
-    nombre = Column(String(10), nullable=False)
-
-    planta = relationship('Planta')
-
-
-class UnidadesIngrediente(Base):
-    __tablename__ = 'unidades_ingredientes'
-    __table_args__ = (
-        Index('id_unidad', 'id_unidad', 'id_ingrediente', unique=True),
-    )
-
-    id = Column(Integer, primary_key=True)
-    id_unidad = Column(ForeignKey('unidades.id'), nullable=False)
-    id_ingrediente = Column(ForeignKey('ingredientes.id'),
-                            nullable=False, index=True)
-    capacidad = Column(Integer, nullable=False)
-
-    ingrediente = relationship('Ingrediente')
-    unidade = relationship('Unidade')
-
-
-class InventarioPlanta(Base):
-    __tablename__ = 'inventario_planta'
-    __table_args__ = (
-        Index('id_archivo', 'id_archivo', 'id_unidad_ingrediente', unique=True),
+        Index('id_archivo', 'id_archivo', 'id_planta',
+              'id_ingrediente', 'nombre', unique=True),
     )
 
     id = Column(Integer, primary_key=True)
     id_archivo = Column(ForeignKey('archivos.id'), nullable=False)
-    id_unidad_ingrediente = Column(ForeignKey(
-        'unidades_ingredientes.id'), nullable=False, index=True)
-    inventario_kg = Column(Integer, nullable=False, server_default=text("'0'"))
+    id_planta = Column(ForeignKey('plantas.id'), nullable=False, index=True)
+    id_ingrediente = Column(ForeignKey('ingredientes.id'),
+                            nullable=False, index=True)
+    nombre = Column(String(10), nullable=False)
+    capacidad = Column(Integer, nullable=False)
+    inventario = Column(Integer, nullable=False)
 
     archivo = relationship('Archivo')
-    unidades_ingrediente = relationship('UnidadesIngrediente')
+    ingrediente = relationship('Ingrediente')
+    planta = relationship('Planta')

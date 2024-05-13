@@ -305,3 +305,20 @@ SELECT
 		GROUP BY id_importacion
 		ORDER BY id_importacion, fecha) data 
 GROUP BY id_importacion, fecha;
+
+-- Importaciones no despachables
+CREATE VIEW importaciones_no_despachables AS
+SELECT 
+	i.id_archivo,
+	i.id_empresa,
+	i.id_puerto ,
+	i.id_operador, 
+	i.id_ingrediente,
+	i.importacion,
+	ROUND(i.cantidad_puerto_kg) as cantidad_puerto_kg,
+	i.valor_kg,
+	IFNULL(SUM(tp.cantidad),0.0) AS cantidad 
+FROM importaciones i 
+LEFT JOIN transitos_puerto tp ON i.id = tp.id_importacion
+GROUP BY i.id_archivo, i.id_empresa, i.id_puerto , i.id_operador, i.id_ingrediente, i.importacion
+HAVING cantidad_puerto_kg < 34000 AND cantidad = 0;  

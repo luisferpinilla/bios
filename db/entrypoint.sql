@@ -281,3 +281,27 @@ SELECT cfv.id_archivo,
 	(IFNULL(cddv.Directo,0.0)+cfv.flete) AS Costo_Total_Despacho
 FROM costos_fletes_view cfv
 LEFT JOIN costos_despacho_directo_view cddv ON cddv.id_importacion = cfv.id_importacion;
+
+-- Costos de almacenamiento en puerto por corte de inventario
+CREATE VIEW costo_total_almacenamiento AS
+SELECT 
+	data.id_importacion AS id_importacion, 
+	data.fecha AS fecha, 
+	SUM(data.valor_kg) as costo_kg FROM 
+		(SELECT 
+			cap.id_importacion AS id_importacion, 
+			cap.fecha_cobro AS fecha, 
+			ROUND(cap.valor_a_cobrar_kg) AS valor_kg,
+			'corte' as causa
+		FROM costos_almacenamiento_puerto cap 
+		UNION ALL
+		SELECT 
+			id_importacion , 
+			MAX(fecha_descarge) AS fecha,
+			ROUND(i.valor_kg) AS valor_kg,
+			'bodegaje' AS causa
+		FROM transitos_puerto tp
+		LEFT JOIN importaciones i ON i.id = tp.id_importacion
+		GROUP BY id_importacion
+		ORDER BY id_importacion, fecha) data 
+GROUP BY id_importacion, fecha;

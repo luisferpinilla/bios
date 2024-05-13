@@ -212,8 +212,7 @@ HAVING total_consumo = 0 AND SS > 0;
 
 -- Inventario realmente en transito hacia el puerto
 CREATE VIEW inventario_en_transito_view AS
-SELECT 
-	i.id_archivo,
+SELECT i.id_archivo,
 	i.id_empresa,
 	e.nombre AS Empresa,
 	i.id_puerto ,
@@ -233,5 +232,52 @@ JOIN empresas e ON e.id=i.id_empresa
 JOIN puertos p ON p.id=i.id_puerto 
 JOIN operadores o ON o.id=i.id_operador 
 JOIN ingredientes i2 ON i2.id=i.id_ingrediente
-HAVING tp.fecha_descarge > (SELECT DATE_SUB(MIN(cp.fecha_consumo), INTERVAL 1 DAY) FROM consumo_proyectado cp)
+HAVING tp.fecha_descarge > (SELECT DATE_SUB(MIN(cp.fecha_consumo), INTERVAL 1 DAY) FROM consumo_proyectado cp);
 
+
+-- Costos por despacho directo
+CREATE VIEW costos_despacho_directo_view AS
+SELECT 
+    tp.id_importacion AS id_importacion, 
+    tp.fecha_descarge AS fecha_descarge, 
+    ROUND(34000*cp2.valor_kg) AS Directo
+FROM transitos_puerto tp
+LEFT JOIN importaciones i ON i.id=tp.id_importacion 
+LEFT JOIN (SELECT * FROM costos_portuarios WHERE tipo_operacion='directo') cp2 ON cp2.id_operador = i.id_operador AND cp2.id_puerto = i.id_puerto AND cp2.id_ingrediente = i.id_ingrediente;
+
+-- Costos fletes
+CREATE VIEW costos_fletes_view AS
+SELECT 
+    i.id_archivo AS id_archivo,
+    i.id AS id_importacion,
+	i.id_empresa AS id_empresa,
+	i.id_puerto AS id_puerto,
+	i.id_operador AS id_operador,
+	i.id_ingrediente AS id_ingrediente,
+	i.importacion AS importacion,
+	f.id_planta AS id_planta,
+	i.fecha_llegada AS fecha_llegada,
+	fechas.fecha_consumo AS Fecha,
+	34000*f.valor_flete_kg AS Flete
+FROM importaciones i 
+LEFT JOIN fletes f ON f.id_puerto = i.id_puerto AND f.id_operador = i.id_operador AND f.id_ingrediente = i.id_ingrediente
+CROSS JOIN (SELECT id_archivo, fecha_consumo FROM consumo_proyectado cp GROUP BY id_archivo, fecha_consumo) fechas ON i.id_archivo = fechas.id_archivo
+ORDER BY id_archivo, id_ingrediente, importacion, id_puerto, id_operador , id_planta, Fecha;
+
+-- Costo total despacho por camion
+CREATE VIEW costo_total_despacho AS
+SELECT cfv.id_archivo,
+	cfv.id_importacion,
+	cfv.id_empresa,
+	cfv.id_puerto,
+	cfv.id_operador,
+	cfv.id_ingrediente,
+	cfv.importacion,
+	cfv.id_planta,
+	cfv.fecha_llegada,
+	cfv.Fecha,
+	cfv.Flete,
+	cddv.Directo,
+	(IFNULL(cddv.Directo,0.0)+cfv.flete) AS Costo_Total_Despacho
+FROM costos_fletes_view cfv
+LEFT JOIN costos_despacho_directo_view cddv ON cddv.id_importacion = cfv.id_importacion;

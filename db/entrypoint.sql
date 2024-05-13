@@ -322,3 +322,20 @@ FROM importaciones i
 LEFT JOIN transitos_puerto tp ON i.id = tp.id_importacion
 GROUP BY i.id_archivo, i.id_empresa, i.id_puerto , i.id_operador, i.id_ingrediente, i.importacion
 HAVING cantidad_puerto_kg < 34000 AND cantidad = 0;  
+
+-- Importaciones activas
+CREATE VIEW importaciones_despachables AS
+SELECT 
+	i.id_archivo,
+	i.id_empresa,
+	i.id_puerto ,
+	i.id_operador, 
+	i.id_ingrediente,
+	i.importacion,
+	ROUND(i.cantidad_puerto_kg) as cantidad_puerto_kg,
+	i.valor_kg,
+	IFNULL(SUM(tp.cantidad),0.0) AS cantidad 
+FROM importaciones i 
+LEFT JOIN transitos_puerto tp ON i.id = tp.id_importacion
+GROUP BY i.id_archivo, i.id_empresa, i.id_puerto , i.id_operador, i.id_ingrediente, i.importacion
+HAVING cantidad_puerto_kg > 34000 OR cantidad > 34000;  

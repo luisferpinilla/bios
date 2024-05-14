@@ -8,9 +8,10 @@
 import pandas as pd
 import mysql.connector
 from utils.asignador_capacidad import AsignadorCapacidad
+from utils.objetivo_inventario import obtener_objetivo_inventario
 from models.sql_models import Empresa, Planta, Ingrediente, TiempoDescarguePlanta, Intercompany, Puerto, Operadore, Flete
 from models.sql_models import SafetyStock, CostosPortuario, Archivo, ConsumoProyectado, Unidade
-from models.sql_models import TransitosPlanta, TransitosPuerto, CostosAlmacenamientoPuerto, Importacione
+from models.sql_models import TransitosPlanta, TransitosPuerto, CostosAlmacenamientoPuerto, Importacione, ObjetivosInventario
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -61,6 +62,7 @@ operaciones_portuarias_df = pd.read_excel(
 fletes_df = pd.read_excel(io=bios_input_file, sheet_name='fletes_cop_per_kg')
 intercompany_df = pd.read_excel(
     io=bios_input_file, sheet_name='venta_entre_empresas')
+objetivo_df = obtener_objetivo_inventario(bios_input_file=bios_input_file)
 
 # %% [markdown]
 # # Parametros generales
@@ -698,6 +700,47 @@ for i in tqdm(costos_almacenamiento_df.index):
     else:
         print(
             f'la importacion {importacion} en el puerto {puerto}, del operador {operador} e ingrediente {ingrediente} NO existe')
+
+session.commit()
+
+# %% [markdown]
+# ## Objetivo de inventario
+
+# %%
+objetivo_inventario_df = objetivo_df['objetivo_inventario'].copy()
+
+# %%
+for i in tqdm(objetivo_inventario_df.index):
+    planta = objetivo_inventario_df.loc[i]['planta']
+    ingrediente = objetivo_inventario_df.loc[i]['ingrediente']
+    objetivo = objetivo_inventario_df.loc[i]['objetivo_dio']
+    kilogramos = objetivo_inventario_df.loc[i]['objetivo_kg']
+
+    planta_model = session.execute(
+        select(Planta).filter_by(nombre=planta)).scalar_one_or_none()
+    ingrediente_model = session.execute(
+        select(Ingrediente).filter_by(nombre=ingrediente)).scalar_one_or_none()
+
+    objetivo_model = session.execute(select(ObjetivosInventario).filter_by(
+        archivo=file_model, ingrediente=ingrediente_model, planta=planta_model)).scalar_one_or_none()
+
+    if objetivo_model is None:
+
+        objetivo_model = ObjetivosInventario(
+            archivo=file_model,
+            ingrediente=ingrediente_model,
+            planta=planta_model,
+            objetivo=objetivo,
+            kilogramos=kilogramos
+        )
+
+        session.add(objetivo_model)
+    else:
+        objetivo_model.archivo = file_model
+        objetivo_model.ingrediente = ingrediente_model
+        objetivo_model.planta = planta_model
+        objetivo_model.objetivo = objetivo
+        objetivo_model.kilogramos = kilogramos
 
 session.commit()
 

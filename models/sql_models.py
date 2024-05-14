@@ -277,3 +277,21 @@ class Unidade(Base):
     archivo = relationship('Archivo')
     ingrediente = relationship('Ingrediente')
     planta = relationship('Planta')
+
+
+class ObjetivosInventario(Base):
+    __tablename__ = 'objetivos_inventario'
+    __table_args__ = (
+        Index('id_archivo', 'id_archivo', 'id_planta', 'id_ingrediente', unique=True),
+    )
+
+    id = Column(Integer, primary_key=True)
+    id_archivo = Column(ForeignKey('archivos.id'), nullable=False)
+    id_planta = Column(ForeignKey('plantas.id'), nullable=False, index=True)
+    id_ingrediente = Column(ForeignKey('ingredientes.id'), nullable=False, index=True)
+    objetivo = Column(Integer, nullable=False)
+    kilogramos = Column(Integer, nullable=False)
+
+    archivo = relationship('Archivo')
+    ingrediente = relationship('Ingrediente')
+    planta = relationship('Planta')

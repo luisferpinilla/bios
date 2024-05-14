@@ -193,6 +193,20 @@ CREATE TABLE IF NOT EXISTS costos_almacenamiento_puerto
     FOREIGN KEY (id_importacion) REFERENCES importaciones(id)
 );
 
+CREATE TABLE IF NOT EXISTS objetivos_inventario
+(
+	id INT AUTO_INCREMENT PRIMARY KEY,
+	id_archivo INT NOT NULL,
+	id_planta INT NOT NULL,
+	id_ingrediente INT NOT NULL,
+	objetivo INT NOT NULL,
+	kilogramos INT NOT NULL,
+	UNIQUE (id_archivo, id_planta, id_ingrediente),
+	FOREIGN KEY (id_archivo) REFERENCES archivos(id),
+	FOREIGN KEY (id_planta) REFERENCES plantas(id),
+	FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id)
+);
+
 -- Lista de vistas
 
 -- Productos con nivel de seguridad pero sin consumo

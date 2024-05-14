@@ -283,6 +283,7 @@ FROM costos_fletes_view cfv
 LEFT JOIN costos_despacho_directo_view cddv ON cddv.id_importacion = cfv.id_importacion;
 
 -- Costos de almacenamiento en puerto por corte de inventario
+CREATE VIEW costo_total_almacenamiento AS
 SELECT 
 	data.id_archivo as id_archivo,
     data.id_importacion AS id_importacion, 

@@ -162,6 +162,9 @@ cython_debug/
 data/*.xlsx
 data/*.xlsm
 
+*.xlsx
+*.xlsm
+
 reports/*.xlsx
 reports/*.xlsm 
 *.lp

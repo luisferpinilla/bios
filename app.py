@@ -666,7 +666,7 @@ def resolver_modelo(bios_input_file:str):
         for ingrediente in inventario_planta[planta].keys():
             for periodo in periodos:
                 funcion_objetivo.append(
-                    objetivo_inventario[planta][ingrediente]*faltante_objetivo_inventario[planta][ingrediente][periodo])
+                    faltante_objetivo_inventario[planta][ingrediente][periodo])
 
     # %% [markdown]
     # ### Backorder
@@ -676,7 +676,7 @@ def resolver_modelo(bios_input_file:str):
         for ingrediente in backorder[planta].keys():
             for periodo in periodos:
                 funcion_objetivo.append(
-                    backorder[planta][ingrediente][periodo])
+                    objetivo_inventario[planta][ingrediente]*backorder[planta][ingrediente][periodo])
 
     # %% [markdown]
     # ## Solucion Modelo Fase 1

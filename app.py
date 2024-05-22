@@ -1,19 +1,18 @@
 import streamlit as st
 import pandas as pd
-from utils.asignador_capacidad import AsignadorCapacidad
-from utils.objetivo_inventario import obtener_objetivo_inventario
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
+from bios_utils.asignador_capacidad import AsignadorCapacidad
+from bios_utils.objetivo_inventario import obtener_objetivo_inventario
 from datetime import datetime, timedelta
 from tqdm import tqdm
 import numpy as np
 import pulp as pu
 import os
- 
+
 # # Modelo de base de datos
 
+
 @st.cache_data
-def resolver_modelo(bios_input_file:str):
+def resolver_modelo(bios_input_file: str):
     # %%
     # engine = create_engine(
     #    "mysql+mysqlconnector://root:secret@localhost:3306/bios")
@@ -38,7 +37,7 @@ def resolver_modelo(bios_input_file:str):
     df = asignador.obtener_unidades_almacenamiento()
     df['Capacidad'] = df.apply(lambda x: x[x['ingrediente_actual']], axis=1)
     df.rename(columns={'planta': 'Planta', 'ingrediente_actual': 'Ingrediente',
-            'cantidad_actual': 'Inventario'}, inplace=True)
+                       'cantidad_actual': 'Inventario'}, inplace=True)
     inventario_planta_df = df.groupby(['Planta', 'Ingrediente'])[
         ['Capacidad', 'Inventario']].sum().reset_index()
 
@@ -64,7 +63,7 @@ def resolver_modelo(bios_input_file:str):
     columns = df.drop(columns=['Planta', 'Ingrediente']).columns
 
     df = df.melt(id_vars=['Planta', 'Ingrediente'],
-                value_vars=columns, var_name='Fecha', value_name='Consumo')
+                 value_vars=columns, var_name='Fecha', value_name='Consumo')
 
     df['Fecha'] = df['Fecha'].apply(
         lambda x: datetime.strptime(x, '%d/%m/%Y').strftime('%Y-%m-%d'))
@@ -79,9 +78,9 @@ def resolver_modelo(bios_input_file:str):
     df = pd.read_excel(io=bios_input_file, sheet_name='plantas')
     # Tiempos de proceso
     columns = ['planta',	'empresa',	'operacion_minutos',
-            'minutos_limpieza', 'plataformas']
+               'minutos_limpieza', 'plataformas']
     df = df.melt(id_vars=['planta', 'empresa'], value_vars=df.drop(columns=columns).columns, var_name='Ingrediente',
-                value_name='Tiempo_Operacion').rename(columns={'planta': 'Planta', 'empresa': 'Empresa'})
+                 value_name='Tiempo_Operacion').rename(columns={'planta': 'Planta', 'empresa': 'Empresa'})
     tiempos_proceso_df = df
 
     # %% [markdown]
@@ -93,9 +92,9 @@ def resolver_modelo(bios_input_file:str):
     df = df['objetivo_inventario'].copy()
 
     objetivo_df = df[['planta', 'ingrediente', 'objetivo_dio', 'objetivo_kg']].rename(columns={'planta': 'Planta',
-                                                                                    'ingrediente': 'Ingrediente',
-                                                                                            'objetivo_dio': 'objetivo',
-                                                                                            'objetivo_kg': 'kilogramos'})
+                                                                                               'ingrediente': 'Ingrediente',
+                                                                                               'objetivo_dio': 'objetivo',
+                                                                                               'objetivo_kg': 'kilogramos'})
 
     # %% [markdown]
     # ### Costo de Operaciones portuarias
@@ -220,7 +219,8 @@ def resolver_modelo(bios_input_file:str):
     # ### Fletes
 
     # %%
-    fletes_df = pd.read_excel(io=bios_input_file, sheet_name='fletes_cop_per_kg')
+    fletes_df = pd.read_excel(
+        io=bios_input_file, sheet_name='fletes_cop_per_kg')
 
     # %% [markdown]
     # ### Intercompany
@@ -240,7 +240,7 @@ def resolver_modelo(bios_input_file:str):
     plantas = list(plantas_df['planta'].unique())
     empresas = list(plantas_df['empresa'].unique())
     empresas_dict = {plantas_df.iloc[i]['planta']: plantas_df.iloc[i]
-                    ['empresa'] for i in range(plantas_df.shape[0])}
+                     ['empresa'] for i in range(plantas_df.shape[0])}
 
     periodos = sorted(list(consumo_proyectado_df['Fecha'].unique()))
     ingredientes = list(consumo_proyectado_df['Ingrediente'].unique())
@@ -336,9 +336,9 @@ def resolver_modelo(bios_input_file:str):
 
     # %%
     df = plantas_df.reset_index().melt(id_vars=['planta'],
-                                    value_vars=ingredientes,
-                                    value_name='Tiempo_Operacion',
-                                    var_name='Ingrediente')
+                                       value_vars=ingredientes,
+                                       value_name='Tiempo_Operacion',
+                                       var_name='Ingrediente')
 
     # %%
     df.set_index(['planta', 'Ingrediente'], inplace=True)
@@ -541,10 +541,10 @@ def resolver_modelo(bios_input_file:str):
 
                 despacho_name = f'despacho_{ingrediente}_{planta}_{periodo}'
                 despacho_var = pu.LpVariable(name=despacho_name,
-                                            lowBound=0,
-                                            upBound=min(
-                                                max_inventario, max_cap_recepcion),
-                                            cat=pu.LpInteger)
+                                             lowBound=0,
+                                             upBound=min(
+                                                 max_inventario, max_cap_recepcion),
+                                             cat=pu.LpInteger)
                 despacho_var.setInitialValue(0)
 
                 despachos_planta[ingrediente][planta][periodo] = despacho_var
@@ -608,7 +608,7 @@ def resolver_modelo(bios_input_file:str):
 
             if periodo in despachos_planta[ingrediente][planta].keys():
                 despacho_list = [despachos_planta[ingrediente][planta][periodo]
-                                for planta in plantas if planta in despachos_planta[ingrediente].keys()]
+                                 for planta in plantas if planta in despachos_planta[ingrediente].keys()]
             else:
                 despacho_list = list()
 
@@ -683,7 +683,7 @@ def resolver_modelo(bios_input_file:str):
     # Se pretende maximizar los dias de inventario de todos los igredientes en todas las plantas durante todos los periodos.
     # Sujeto a que no se pueda exceder la capaciadd maxina de almacenamiento
     # La idea es que se vaa despachar todo el inventario que las plantas puedan recibir dada su capacidad limitada de recepcion.
-    # 
+    #
 
     # %%
     # Cantidad CPU habilitadas para trabajar
@@ -801,10 +801,10 @@ def resolver_modelo(bios_input_file:str):
         if inventario > 34000 or llegadas > 34000:
 
             index = (cargas_despachables_df.iloc[i]['Empresa'],
-                    cargas_despachables_df.iloc[i]['Puerto'],
-                    cargas_despachables_df.iloc[i]['Operador'],
-                    cargas_despachables_df.iloc[i]['Ingrediente'],
-                    cargas_despachables_df.iloc[i]['Importacion'])
+                     cargas_despachables_df.iloc[i]['Puerto'],
+                     cargas_despachables_df.iloc[i]['Operador'],
+                     cargas_despachables_df.iloc[i]['Ingrediente'],
+                     cargas_despachables_df.iloc[i]['Importacion'])
 
             importaciones.append(index)
 
@@ -856,7 +856,7 @@ def resolver_modelo(bios_input_file:str):
 
     # %%
     columns = ['Empresa', 'Puerto', 'Operador',
-            'Ingrediente', 'Importacion', 'valor_kg']
+               'Ingrediente', 'Importacion', 'valor_kg']
     importaciones_df = cargas_despachables_df.groupby(
         columns)[[]].count().reset_index().copy()
 
@@ -868,8 +868,8 @@ def resolver_modelo(bios_input_file:str):
     # %%
     # Cruzar con fechas de consumo
     df = pd.merge(left=df,
-                right=pd.DataFrame(periodos).rename(columns={0: 'Fecha'}),
-                how='cross')
+                  right=pd.DataFrame(periodos).rename(columns={0: 'Fecha'}),
+                  how='cross')
     print(df.shape)
 
     # %%
@@ -887,10 +887,10 @@ def resolver_modelo(bios_input_file:str):
     # %%
     # Cruzar con fletes
     df = pd.merge(left=df,
-                right=temp,
-                left_on=['Puerto', 'Operador', 'Ingrediente'],
-                right_on=['Puerto', 'Operador', 'Ingrediente'],
-                how='left')
+                  right=temp,
+                  left_on=['Puerto', 'Operador', 'Ingrediente'],
+                  right_on=['Puerto', 'Operador', 'Ingrediente'],
+                  how='left')
     print(df.shape)
 
     # %%
@@ -913,25 +913,25 @@ def resolver_modelo(bios_input_file:str):
     # %%
     # Anexar costos portuarios por despacho directo
     df = pd.merge(left=df,
-                right=temp,
-                left_on=['Empresa_Origen', 'Puerto', 'Operador',
-                        'Ingrediente', 'Importacion', 'Fecha'],
-                right_on=['Empresa_Origen', 'Puerto', 'Operador',
+                  right=temp,
+                  left_on=['Empresa_Origen', 'Puerto', 'Operador',
+                           'Ingrediente', 'Importacion', 'Fecha'],
+                  right_on=['Empresa_Origen', 'Puerto', 'Operador',
                             'Ingrediente', 'Importacion', 'Fecha'],
-                how='left')
+                  how='left')
     df['Directo'] = df['Directo'].fillna(0)
 
     # %%
     intercompany_df = intercompany_df.melt(id_vars='origen', value_vars=empresas, var_name='Empresa_Destino',
-                                        value_name='intercompany').rename(columns={'origen': 'Empresa_Origen'})
+                                           value_name='intercompany').rename(columns={'origen': 'Empresa_Origen'})
 
     # %%
     # Intercompany
     df = pd.merge(left=df,
-                right=intercompany_df,
-                left_on=['Empresa_Origen', 'Empresa_Destino'],
-                right_on=['Empresa_Origen', 'Empresa_Destino'],
-                how='left')
+                  right=intercompany_df,
+                  left_on=['Empresa_Origen', 'Empresa_Destino'],
+                  right_on=['Empresa_Origen', 'Empresa_Destino'],
+                  how='left')
 
     # %%
     df['Directo'].unique()
@@ -946,7 +946,7 @@ def resolver_modelo(bios_input_file:str):
 
     # %%
     costo_transporte_df.set_index(keys=['Empresa_Origen', 'Puerto', 'Operador',
-                                'Ingrediente', 'Importacion', 'Planta', 'Fecha'], inplace=True)
+                                        'Ingrediente', 'Importacion', 'Planta', 'Fecha'], inplace=True)
 
     # %%
     costo_transporte = dict()
@@ -1025,19 +1025,19 @@ def resolver_modelo(bios_input_file:str):
 
     # %% [markdown]
     # Minimizar el costo de despacho y almacenamiento
-    # 
+    #
     # $ \sum_{i}{\sum_{j}{CR_{i,j}X_{i,j}}} $
-    # 
+    #
 
     # %%
     # Costo de transporte
     costo_transporte_fobj = [costo_transporte[i][j][t]*var_despachos[i][j][t]
-                            for i in importaciones for j in plantas for t in periodos[1:-2:]]
+                             for i in importaciones for j in plantas for t in periodos[1:-2:]]
 
     # %%
     # Costo Almacenamiento
     costo_almacenamiento_fobj = [34000*costo_almacenamiento[i][t] *
-                                var_inventario_puerto[i][t] for i in importaciones for t in periodos]
+                                 var_inventario_puerto[i][t] for i in importaciones for t in periodos]
 
     # %%
     fobj = costo_transporte_fobj + costo_almacenamiento_fobj
@@ -1047,7 +1047,7 @@ def resolver_modelo(bios_input_file:str):
 
     # %% [markdown]
     # Cumplimiento de la demanda
-    # 
+    #
     # $ \sum_{i}\sum_{j}\sum_{t}{X_{ijt}} >=  D_{jt}  $
 
     # %%
@@ -1061,7 +1061,7 @@ def resolver_modelo(bios_input_file:str):
                                 for i in importaciones if i[3] == ingrediente])
                 right = demanda_planta[j][ingrediente][t]
                 rest_name = f'cumplir_demanda_{ingrediente}_{j}_{t}'
-                rest = (left >= right, rest_name)
+                rest = (left == right, rest_name)
                 cumplimiento_demanda_rest.append(rest)
 
     # %%
@@ -1069,7 +1069,7 @@ def resolver_modelo(bios_input_file:str):
 
     # %% [markdown]
     # Balance de inventario
-    # 
+    #
     # $ I_{it} = I_{it-1} + A_{it} - \sum_{j}{X_{ijt}} \forall{i}, \forall {1>t>T-2}$
 
     # %%
@@ -1120,7 +1120,6 @@ def resolver_modelo(bios_input_file:str):
     # cumplimiento de la demanda en la planta
     for rest in cumplimiento_demanda_rest:
         problema += rest
-
 
     t_limit_minutes = 5
 
@@ -1212,24 +1211,23 @@ def resolver_modelo(bios_input_file:str):
     reporte_planta_df = pd.DataFrame(reporte_inventario_planta)
 
     # %%
-    #with pd.ExcelWriter('reporte_final.xlsx') as writer:
+    # with pd.ExcelWriter('reporte_final.xlsx') as writer:
     #    reporte_puerto_df.to_excel(
     #        writer, sheet_name='inventario_puerto', index=False)
     #    reporte_despachos_df.to_excel(writer, sheet_name='despachos', index=False)
     #    reporte_planta_df.to_excel(
     #        writer, sheet_name='inventario_planta', index=False)
 
-    reportes_dict = {'puerto':reporte_puerto_df,'despacho':reporte_despachos_df, 'planta':reporte_planta_df}
+    reportes_dict = {'puerto': reporte_puerto_df,
+                     'despacho': reporte_despachos_df, 'planta': reporte_planta_df}
 
     return reportes_dict
-
 
 
 @st.cache_data
 def convert_df(df):
     # IMPORTANT: Cache the conversion to prevent computation on every rerun
     return df.to_csv().encode("utf-8")
-
 
 
 st.set_page_config(layout="wide")
@@ -1250,7 +1248,7 @@ if 'resultado' not in st.session_state:
 
             # st.session_state['resultado'] = pd.read_excel(io=uploaded_file, sheet_name='consumo_proyectado')
 
-            reportes_dict =resolver_modelo(uploaded_file)
+            reportes_dict = resolver_modelo(uploaded_file)
             st.session_state['resultado'] = reportes_dict
 
 else:
@@ -1261,7 +1259,8 @@ else:
     despachos = convert_df(reportes_dict['despacho'])
     plantas = convert_df(reportes_dict['planta'])
 
-    puertos_tab, despachos_tab, plantas_tab = st.tabs(tabs=['Puerto', 'Despachos', 'Plantas'])
+    puertos_tab, despachos_tab, plantas_tab = st.tabs(
+        tabs=['Puerto', 'Despachos', 'Plantas'])
 
     with puertos_tab:
         st.dataframe(reportes_dict['puerto'])
@@ -1289,5 +1288,3 @@ else:
             file_name="reporte_plantas.csv",
             mime="text/csv",
         )
-
-    

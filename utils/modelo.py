@@ -7,13 +7,13 @@ Created on Sun May  5 23:39:32 2024
 """
 
 import pandas as pd
-from utils.problema import leer_archivo
-from utils.problema import __generar_periodos
-from utils.problema import obtener_objetivo_inventario
-from utils.problema import obtener_matriz_plantas
-from utils.problema import obtener_matriz_importaciones
-from utils.problema import validacion_eliminar_cargas_sin_inventario
-from utils.problema import validacion_eliminar_ingredientes_sin_consumo
+from utils.problema_matrix import leer_archivo
+from utils.problema_matrix import __generar_periodos
+from utils.problema_matrix import obtener_objetivo_inventario
+from utils.problema_matrix import obtener_matriz_plantas
+from utils.problema_matrix import obtener_matriz_importaciones
+from utils.problema_matrix import validacion_eliminar_cargas_sin_inventario
+from utils.problema_matrix import validacion_eliminar_ingredientes_sin_consumo
 import os
 from tqdm import tqdm
 from datetime import timedelta

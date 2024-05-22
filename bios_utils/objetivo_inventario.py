@@ -1,6 +1,6 @@
 # %%
 from datetime import datetime, timedelta
-from utils.asignador_capacidad import AsignadorCapacidad
+from bios_utils.asignador_capacidad import AsignadorCapacidad
 from sklearn.cluster import KMeans
 import numpy as np
 import pandas as pd

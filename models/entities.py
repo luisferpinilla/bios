@@ -9,39 +9,39 @@ class Periodo(Base):
     __tablename__ = "periodos"
     
     id = Column(Integer, primary_key=True)
-    nombre = Column(String(15))
-    fecha = Column(Date)
+    fecha = Column(Date, nullable=False, unique=True)
 
 class Empresa(Base):
     __tablename__ = "empresas"
     
     id = Column(Integer, primary_key=True)
-    nombre = Column(String(15))
+    nombre = Column(String(15), nullable=False, unique=True)
 
 class Ingrediente(Base):
     __tablename__ = "ingredientes"
     
     id =Column(Integer, primary_key=True)
-    nombre = Column(String(15))
+    nombre = Column(String(15), nullable=False, unique=True)
     densidad = float
     
-class Plant(Base):
+class Planta(Base):
     __tablename__ = "plantas"
     
     id = Column(Integer, primary_key=True)
     id_empresa = Column(Integer, ForeignKey("empresas.id"))
-    nombre = Column(String(15))
+    nombre = Column(String(15), nullable=False, unique=True)
     tiempo_disponible_recepcion = Column(Integer)
     latitud = Column(Float)
     longitud = Column(Float)
     
-    empresa = relationship("Empresa", back_populates="planta_detalles")
+    empresa = relationship("Empresa")
 
 
 class Puerto(Base):
     __tablename__ = "puertos"
     
     id = Column(Integer, primary_key=True)
+    codigo = Column(String(3), nullable=False, unique=True)
     nombre = Column(String(15))
     latitud = Column(Float)
     longitud = Column(Float)
@@ -53,7 +53,7 @@ class Operador(Base):
     __tablename__ = "operadores"
     
     id = Column(Integer, primary_key=True)
-    nombre = Column(String(15))
+    nombre = Column(String(15), nullable=False, unique=True)
 
                     
 class InventarioPlanta(Base):
@@ -73,16 +73,16 @@ class InventarioPlanta(Base):
     var_backorder = Column(Integer)
     var_inventario_al_cierre = Column(Integer)
 
-    planta = relationship("Planta", back_populates="plantas_inventarios")
-    ingrediente = relationship("Ingrediente", back_populates="plantas_inventarios")
-    periodo = relationship("Periodo", back_populates="plantas_inventarios")
+    planta = relationship("Planta")
+    ingrediente = relationship("Ingrediente")
+    periodo = relationship("Periodo")
 
 
 class Importacion(Base):
     __tablename__ = "importaciones"
     
     id = Column(Integer, primary_key=True)
-    codigo = Column(String(25))
+    codigo = Column(String(25), nullable=False, unique=True)
     id_ingrediente = Column(Integer, ForeignKey("ingredientes.id"))
     id_empresa = Column(Integer, ForeignKey("empresas.id"))
     id_puerto = Column(Integer, ForeignKey("puertos.id"))
@@ -90,9 +90,9 @@ class Importacion(Base):
     fecha_llegada = Column(Date)
     inventario_inicial = Column(Integer)
 
-    ingrediente = relationship("Ingrediente", back_populates="importaciones")
-    empresa = relationship("Empresa", back_populates="importaciones")
-    operador = relationship("Operador", back_populates="importaciones")
+    ingrediente = relationship("Ingrediente")
+    empresa = relationship("Empresa")
+    operador = relationship("Operador")
 
 
 class InventarioPuerto(Base):
@@ -106,8 +106,8 @@ class InventarioPuerto(Base):
     llegada_planeada = Column(Integer)
     var_inventario_al_cierre = Column(Integer)
 
-    importacion = relationship("Importacion", back_populates="puerto_inventarios")
-    periodo = relationship("Periodo", back_populates="puerto_inventarios")   
+    importacion = relationship("Importacion")
+    periodo = relationship("Periodo")   
 
 
 class Despachos(Base):
@@ -116,16 +116,15 @@ class Despachos(Base):
     id_importacion = Column(Integer, ForeignKey("importaciones.id"))
     id_planta = Column(Integer, ForeignKey("plantas.id"))
     id_periodo_despacho = Column(Integer, ForeignKey("periodos.id"))
-    id_periodo_llegada = Column(Integer, ForeignKey("periodos.id"))
+    id_periodo_llegada = Column(Integer)
     costo_flete = Column(Float)
     costo_directo = Column(Float)
     costo_intercompany = Column(Float)
     tiempo_recepcion = Column(Integer)    
     var_cantidad_camiones = Column(Integer)
 
-    importacion = relationship("Importacion", back_populates="despachos")
-    planta = relationship("Planta", back_populates="despachos")
-    perido_despacho = relationship("Periodo", back_populates="despachos")
-    periodo_llegada = relationship("Periodo", back_populates="despachos")
+    importacion = relationship("Importacion")
+    planta = relationship("Planta")
+    perido_despacho = relationship("Periodo")
 
 Base.metadata.create_all(engine)

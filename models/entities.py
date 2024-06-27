@@ -3,7 +3,6 @@ from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, create_
 from sqlalchemy.orm import relationship
 
 Base = declarative_base()
-engine = create_engine("sqlite:///base.db", echo=True, future=True)
 
 class Periodo(Base):
     __tablename__ = "periodos"
@@ -126,5 +125,14 @@ class Despachos(Base):
     importacion = relationship("Importacion")
     planta = relationship("Planta")
     perido_despacho = relationship("Periodo")
+
+
+
+database_path = 'C:\\Users\\luisf\\Documents\\source\\bios\\database.accdb'
+connection_string = f"mssql+pyodbc:///?odbc_connect=DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={database_path};"
+# connection_string = "sqlite:///base.db"
+
+
+engine = create_engine(connection_string, echo=True, future=True)
 
 Base.metadata.create_all(engine)

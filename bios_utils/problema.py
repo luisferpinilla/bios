@@ -166,6 +166,8 @@ def get_inventario_puerto(bios_input_file:str)->pd.DataFrame:
         inventario_puerto_list.append(dato)
     inventario_puerto_df = pd.DataFrame(inventario_puerto_list)
 
+    return inventario_puerto_df
+
 
 def get_cargas_despachables(bios_input_file:str)->pd.DataFrame:
 

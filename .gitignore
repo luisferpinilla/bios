@@ -175,3 +175,8 @@ deleteme.*
 
 # Database
 db_data/
+*.db
+
+# Model files
+*.mps
+

@@ -1,201 +1,254 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat May 18 17:20:03 2024
-
-@author: luispinilla
-"""
-
 import pandas as pd
-import numpy as np
-from bios_utils.asignador_capacidad import AsignadorCapacidad
-from datetime import datetime, timedelta
-from bios_utils.objetivo_inventario import obtener_objetivo_inventario
-from tqdm import tqdm
+from bios_utils.loader import get_inventario_capacidad_planta
+from bios_utils.loader import get_llegadas_programadas_planta
+from bios_utils.loader import get_consumo_proyectado
+from bios_utils.loader import get_tiempos_proceso
+from bios_utils.loader import get_objetivo_inventario
+from bios_utils.loader import get_costo_operacion_portuaria
+from bios_utils.loader import get_transitos_a_puerto
+from bios_utils.loader import get_inventario_puerto
+from bios_utils.loader import get_inventario_puerto
+from bios_utils.loader import get_costo_almaceniento_puerto
+from bios_utils.loader import get_cargas_despachables
+from bios_utils.loader import get_fletes
+from bios_utils.loader import get_intercompany
 
-
-def get_inventario_capacidad_planta(bios_input_file:str)->pd.DataFrame:
-    # Cargar inventario y capacidad de plantas
-    asignador = AsignadorCapacidad(bios_input_file)
-    df = asignador.obtener_unidades_almacenamiento()
-    df['Capacidad'] = df.apply(lambda x: x[x['ingrediente_actual']], axis=1)
-    df.rename(columns={'planta': 'Planta', 'ingrediente_actual': 'Ingrediente',
-            'cantidad_actual': 'Inventario'}, inplace=True)
-    inventario_planta_df = df.groupby(['Planta', 'Ingrediente'])[
-        ['Capacidad', 'Inventario']].sum().reset_index()
+class Problema():
     
-    return inventario_planta_df
+    def __init__(self, bios_input_file, cap_carga_camion=34000) -> None:
+        
+        self.bios_input_file = bios_input_file
+        self.cap_camion = cap_carga_camion
 
+        self.__load_file()
 
-def get_llegadas_programadas_planta(bios_input_file:str)->pd.DataFrame:
-    # llegadas programadas a planta
-    df = pd.read_excel(
-        io=bios_input_file, sheet_name='tto_plantas')
-    df = df.groupby(['planta', 'ingrediente', 'fecha_llegada'])[['cantidad']].sum().reset_index().rename(columns={
-        'planta': 'Planta', 'ingrediente': 'Ingrediente', 'fecha_llegada': 'Fecha', 'cantidad': 'Llegadas_planeadas'})
-    return df
+        self.empresas = self.__load_empresas()
+        self.plantas = self.__load_plantas()
+        self.ingredientes = self.__load_ingredientes()
+        self.periodos = self.__load_periodos()
+        self.consumo_proyectado = self.__load_consumo_proyectado()
+        self.llegadas_planeadas_planta = self.__load_llegadas_planeadas_planta()
+        self.inventario_planta, self.capacidad_planta = self.__load_inventario_capacidad_planta()
+        self.tiempo_disponible, self.tiempo_limpieza, self.tiempo_proceso = self.__load_tiempos_proceso()
+        self.objetivo_inventario = self.__load_objetivo_inventario()
+        self.inventario_inicial_puerto = self.__load_inventario_inicial_puerto()
+        self.llegadas_puerto = self.__load_llegadas_a_puerto()
 
+    def __load_file(self):
 
-def get_consumo_proyectado(bios_input_file:str)->pd.DataFrame:
-    # Consumo proyectado
-    df = pd.read_excel(io=bios_input_file, sheet_name='consumo_proyectado').rename(
-        columns={'planta': 'Planta', 'ingrediente': 'Ingrediente'})
+        # Plantas
+        self.plantas_df = pd.read_excel(io=self.bios_input_file, sheet_name='plantas')
 
-    columns = df.drop(columns=['Planta', 'Ingrediente']).columns
+        # Inventarios y capacidad de almacenamiento en planta
+        self.inventario_planta_df = get_inventario_capacidad_planta(
+            bios_input_file=self.bios_input_file)
 
-    df = df.melt(id_vars=['Planta', 'Ingrediente'],
-                value_vars=columns, var_name='Fecha', value_name='Consumo')
+        # Transito a plantas
+        self.llegadas_programadas_df = get_llegadas_programadas_planta(
+            bios_input_file=self.bios_input_file)
 
-    df['Fecha'] = df['Fecha'].apply(
-        lambda x: datetime.strptime(x, '%d/%m/%Y').strftime('%Y-%m-%d'))
+        # Consumo Proyectado
+        self.consumo_proyectado_df = get_consumo_proyectado(bios_input_file=self.bios_input_file)
+
+        # Tiempos de Proceso
+        self.tiempos_proceso_df = get_tiempos_proceso(bios_input_file=self.bios_input_file)
+
+        # Objetivo de inventario
+        self.objetivo_df = get_objetivo_inventario(bios_input_file=self.bios_input_file)
+
+        # Costo de Operaciones portuarias
+        self.costo_portuario_bodegaje_df, self.costo_portuario_directo_df = get_costo_operacion_portuaria(
+            bios_input_file=self.bios_input_file)
+
+        # Transitos a Puerto
+        self.tto_puerto_df = get_transitos_a_puerto(bios_input_file=self.bios_input_file)
+
+        # Inventarios en Puerto
+        self.inventario_puerto_df = get_inventario_puerto(bios_input_file=self.bios_input_file)
+
+        # Cargas despachables
+        self.cargas_despachables_df = get_cargas_despachables(
+            bios_input_file=self.bios_input_file)
+
+        # Costos Almacenamiento Cargas
+        self.costos_almacenamiento_df = get_costo_almaceniento_puerto(
+            bios_input_file=self.bios_input_file)
+
+        # Fletes
+        self.fletes_df = get_fletes(bios_input_file=self.bios_input_file)
+
+        # Intercompany
+        self.intercompany_df = get_intercompany(bios_input_file=self.bios_input_file)
+
+    def __load_inventario_inicial_puerto(self):
+        # Transformar a camiones
+        self.cargas_despachables_df['Camiones'] = self.cargas_despachables_df['Inventario'].apply(
+            lambda x: int(x/self.cap_camion))
+        df = self.cargas_despachables_df.groupby(['Ingrediente'])[
+            ['Camiones']].sum()
+        
+        # Inicializar inventario inicial en puerto
+        inventario_inicial_puerto = dict()
+        for ingrediente in self.ingredientes:
+            if ingrediente in df.index:
+                cantidad = df.loc[ingrediente]['Camiones']
+                inventario_inicial_puerto[ingrediente] = cantidad
+            else:
+                inventario_inicial_puerto[ingrediente] = 0
+
+        return inventario_inicial_puerto
+
+    def __load_llegadas_a_puerto(self):
+        # Transitos programados
+        self.tto_puerto_df['Camiones'] = self.tto_puerto_df['Llegada'].apply(
+            lambda x: int(x/self.cap_camion))
+        # Agrupar y totalizar por la cantidad de camiones
+        df = self.tto_puerto_df.groupby(['Ingrediente', 'Fecha'])[
+            ['Camiones']].sum()
+        
+        llegadas_puerto = dict()
+        for ingrediente in self.ingredientes:
+            llegadas_puerto[ingrediente] = dict()
+            for periodo in self.periodos:
+                i = (ingrediente, periodo)
+                if i in df.index:
+                    camiones = df.loc[i]['Camiones']
+                else:
+                    camiones = 0
+                llegadas_puerto[ingrediente][periodo] = camiones
+                
+        return llegadas_puerto
     
-    return df
+    def __load_objetivo_inventario(self):
+        self.objetivo_df.set_index(['Planta', 'Ingrediente'], inplace=True)
 
-def get_tiempos_proceso(bios_input_file:str)->pd.DataFrame:
-    # Tiempos de proceso
-    df = pd.read_excel(io=bios_input_file, sheet_name='plantas')
-    # Tiempos de proceso
-    columns = ['planta',	'empresa',	'operacion_minutos',
-            'minutos_limpieza', 'plataformas']
-    df = df.melt(id_vars=['planta', 'empresa'], value_vars=df.drop(columns=columns).columns, var_name='Ingrediente',
-                value_name='Tiempo_Operacion').rename(columns={'planta': 'Planta', 'empresa': 'Empresa'})
-    return df
+        objetivo_inventario = dict()
 
+        for planta in self.plantas:
+            objetivo_inventario[planta] = dict()
+            for ingrediente in self.ingredientes:
+                i = (planta, ingrediente)
+                if i in self.objetivo_df.index:
+                    objetivo = self.objetivo_df.loc[i]['kilogramos']
+                else:
+                    objetivo = 0.0
 
-def get_objetivo_inventario(bios_input_file:str)->pd.DataFrame:
-    # Objetivo de inventarios
-    df = obtener_objetivo_inventario(bios_input_file=bios_input_file)
-    df = df['objetivo_inventario'].copy()
+                objetivo_inventario[planta][ingrediente] = objetivo
+        
+        return objetivo_inventario
 
-    objetivo_df = df[['planta', 'ingrediente', 'objetivo_dio', 'objetivo_kg']].rename(columns={'planta': 'Planta',
-                                                                                    'ingrediente': 'Ingrediente',
-                                                                                            'objetivo_dio': 'objetivo',
-                                                                                            'objetivo_kg': 'kilogramos'})
-    return objetivo_df
+    def __load_tiempos_proceso(self):
+        self.plantas_df.set_index(['planta'], inplace=True)
+        tiempo_disponible = dict()
+        tiempo_limpieza = dict()
+        tiempo_proceso = dict()
+        for planta in self.plantas:
 
-def get_costo_operacion_portuaria(bios_input_file:str)->pd.DataFrame:
-    # Costo de Operaciones portuarias
-    operaciones_portuarias_df = pd.read_excel(
-        io=bios_input_file, sheet_name='costos_operacion_portuaria')
-    costo_portuario_directo_df = operaciones_portuarias_df[operaciones_portuarias_df['tipo_operacion'] == 'directo'].copy(
-    ).drop(columns='tipo_operacion')
-    costo_portuario_bodegaje_df = operaciones_portuarias_df[operaciones_portuarias_df['tipo_operacion'] == 'bodega'].copy(
-    ).drop(columns='tipo_operacion')
-    return costo_portuario_bodegaje_df, costo_portuario_directo_df
+            if planta in self.plantas_df.index:
+                disponible = self.plantas_df.loc[planta]['operacion_minutos'] * \
+                    self.plantas_df.loc[planta]['plataformas']
+                limpieza = self.plantas_df.loc[planta]['minutos_limpieza']
+            else:
+                disponible = 0
+                limpieza = 0
 
+            tiempo_disponible[planta] = disponible
+            tiempo_limpieza[planta] = limpieza
 
-def get_transitos_a_puerto(bios_input_file:str, cap_descarge=5000000)->pd.DataFrame:
-    # Transitos a puerto
-    df = pd.read_excel(io=bios_input_file, sheet_name='tto_puerto')
-    transitos_list = list()
-    for i in tqdm(df.index):
-        # print('-----------------')
-        # print(transitos_puerto_df.loc[i])
-        empresa = df.loc[i]['empresa']
-        operador = df.loc[i]['operador']
-        puerto = df.loc[i]['puerto']
-        ingrediente = df.loc[i]['ingrediente']
-        importacion = df.loc[i]['importacion']
-        fecha = df.loc[i]['fecha_llegada']
-        cantidad = int(df.loc[i]['cantidad_kg'])
-        valor_kg = float(df.loc[i]['valor_kg'])
+        df = self.plantas_df.reset_index().melt(id_vars=['planta'],
+                                   value_vars=self.ingredientes,
+                                   value_name='Tiempo_Operacion',
+                                   var_name='Ingrediente')
+        
+        df.set_index(['planta', 'Ingrediente'], inplace=True)
 
-        # Agregar las llegadas segun la capacidad del puerto
-        while cantidad > cap_descarge:
-            dato = {
-                'Empresa': empresa,
-                'Puerto': puerto,
-                'Operador': operador,
-                'Ingrediente': ingrediente,
-                'Importacion': importacion,
-                'Fecha': fecha.strftime('%Y-%m-%d'),
-                'Inventario': 0,
-                'valor_kg': valor_kg,
-                'Llegada': cap_descarge
-            }
-            transitos_list.append(dato)
+        for planta in self.plantas:
+            tiempo_proceso[planta] = dict()
+            for ingrediente in self.ingredientes:
+                i = (planta, ingrediente)
+                if i in df.index:
+                    tiempo = df.loc[i]['Tiempo_Operacion']
+                else:
+                    tiempo = 0
+                tiempo_proceso[planta][ingrediente] = tiempo
 
-            cantidad -= cap_descarge
-            fecha = fecha + timedelta(days=1)
+        return tiempo_disponible, tiempo_limpieza, tiempo_proceso
 
-        if cantidad > 0:
+    def __load_inventario_capacidad_planta(self):
+        # Iventario y capacidad
+        self.inventario_planta_df.set_index(['Planta', 'Ingrediente'], inplace=True)
 
-            dato = {
-                'Empresa': empresa,
-                'Puerto': puerto,
-                'Operador': operador,
-                'Ingrediente': ingrediente,
-                'Importacion': importacion,
-                'Fecha': fecha.strftime('%Y-%m-%d'),
-                'Inventario': 0,
-                'valor_kg': valor_kg,
-                'Llegada': cantidad
-            }
-            transitos_list.append(dato)
-
-    tto_puerto_df = pd.DataFrame(transitos_list)
-
-    return tto_puerto_df
-
-
-def get_inventario_puerto(bios_input_file:str)->pd.DataFrame:
-
-    df = pd.read_excel(io=bios_input_file, sheet_name='inventario_puerto')
-    inventario_puerto_list = list()
-    for i in tqdm(df.index):
-        empresa = df.loc[i]['empresa']
-        operador = df.loc[i]['operador']
-        puerto = df.loc[i]['puerto']
-        ingrediente = df.loc[i]['ingrediente']
-        importacion = df.loc[i]['importacion']
-        fecha = df.loc[i]['fecha_llegada']
-        cantidad = int(df.loc[i]['cantidad_kg'])
-        valor_kg = float(df.loc[i]['valor_cif_kg'])
-
-        dato = {
-            'Empresa': empresa,
-            'Puerto': puerto,
-            'Operador': operador,
-            'Ingrediente': ingrediente,
-            'Importacion': importacion,
-            'Fecha': fecha.strftime('%Y-%m-%d'),
-            'Inventario': cantidad,
-            'valor_kg': valor_kg,
-            'Llegada': 0
-        }
-        inventario_puerto_list.append(dato)
-    inventario_puerto_df = pd.DataFrame(inventario_puerto_list)
-
-    return inventario_puerto_df
-
-
-def get_cargas_despachables(bios_input_file:str)->pd.DataFrame:
-
-    inventario_puerto_df = get_inventario_puerto(bios_input_file=bios_input_file)
+        inventario_inicial = dict()
+        capacidad_planta = dict()
+        for planta in self.plantas:
+            inventario_inicial[planta] = dict()
+            capacidad_planta[planta] = dict()
+            for ingrediente in self.ingredientes:
+                i = (planta, ingrediente)
+                if i in self.inventario_planta_df.index:
+                    capacidad = self.inventario_planta_df.loc[i]['Capacidad']
+                    inventario = self.inventario_planta_df.loc[i]['Inventario']
+                else:
+                    capacidad = 0
+                    inventario = 0
+                inventario_inicial[planta][ingrediente] = inventario
+                capacidad_planta[planta][ingrediente] = capacidad
+        
+        return inventario_inicial, capacidad_planta
     
-    tto_puerto_df = get_transitos_a_puerto(bios_input_file=bios_input_file)
+    def __load_llegadas_planeadas_planta(self)->dict:
+        self.llegadas_programadas_df.set_index(['Planta', 'Ingrediente', 'Fecha'], inplace=True)
+
+        # Llegadas planeadas
+        llegadas_planteadas = dict()
+        for planta in self.plantas:
+            llegadas_planteadas[planta] = dict()
+            for ingrediente in self.ingredientes:
+                llegadas_planteadas[planta][ingrediente] = dict()
+                for periodo in self.periodos:
+                    i = (planta, ingrediente, periodo)
+                    if i in self.llegadas_programadas_df.index:
+                        llegadas = self.llegadas_programadas_df.loc[i]['Llegadas_planeadas']
+                    else:
+                        llegadas = 0
+                    llegadas_planteadas[planta][ingrediente][periodo] = llegadas
+
+        return llegadas_planteadas
+
+    def __load_empresas(self)->dict:
+            empresas_dict = {self.plantas_df.iloc[i]['planta']: self.plantas_df.iloc[i]
+                    ['empresa'] for i in range(self.plantas_df.shape[0])}
+            return empresas_dict
+
+    def __load_plantas(self)->list:
+        plantas = list(self.plantas_df['planta'].unique())
+        return plantas
     
-    cargas_despachables_df = pd.concat([inventario_puerto_df, tto_puerto_df])
+    def __load_periodos(self)->list:
+        periodos = sorted(list(self.consumo_proyectado_df['Fecha'].unique()))
+        return periodos
 
-    cargas_despachables_df[(cargas_despachables_df['Inventario'] >= 34000) & (cargas_despachables_df['Llegada'] >= 0)]
-    
-    return cargas_despachables_df
+    def __load_ingredientes(self)->list:
+        ingredientes = list(self.consumo_proyectado_df['Ingrediente'].unique())
+        return ingredientes
 
+    def __load_consumo_proyectado(self)->dict:
 
-def get_costo_almaceniento_puerto(bios_input_file:str)->pd.DataFrame:
-    # Leer el archivo de excel
-    costos_almacenamiento_df = pd.read_excel(
-        io=bios_input_file, sheet_name='costos_almacenamiento_cargas')
+        # Consumo Proyectado
+        self.consumo_proyectado_df.set_index(
+            ['Planta', 'Ingrediente', 'Fecha'], inplace=True)
 
-    costos_almacenamiento_df['fecha_corte'] = costos_almacenamiento_df['fecha_corte'].apply(
-        lambda x: x.strftime('%Y-%m-%d'))
-    
-    return costos_almacenamiento_df
-
-def get_fletes(bios_input_file:str)->pd.DataFrame:
-    df = pd.read_excel(io=bios_input_file, sheet_name='fletes_cop_per_kg')
-    return df
-
-def get_intercompany(bios_input_file:str)->pd.DataFrame:
-    df = pd.read_excel(io=bios_input_file, sheet_name='venta_entre_empresas')
-    return df
+        consumo_proyectado = dict()
+        for planta in self.plantas:
+            consumo_proyectado[planta] = dict()
+            for ingrediente in self.ingredientes:
+                consumo_proyectado[planta][ingrediente] = dict()
+                for periodo in self.periodos:
+                    i = (planta, ingrediente, periodo)
+                    if i in self.consumo_proyectado_df.index:
+                        consumo = int(self.consumo_proyectado_df.loc[i]['Consumo'])
+                    else:
+                        consumo = 0.0
+                    consumo_proyectado[planta][ingrediente][periodo] = consumo
+        
+        return consumo_proyectado

@@ -1,19 +1,9 @@
-version: '3'
+version: '3.8'
 
 services:
-  db:
-    image: mysql:8.0
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: secret
-      MYSQL_DATABASE: bios
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
+  streamlit:
+    build: .
     ports:
-      - "3306:3306"
+      - "8501:8501"
     volumes:
-      - ./db/entrypoint.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./db_data:/var/lib/mysql
-
-volumes:
-  db_data:
+      - .:/app

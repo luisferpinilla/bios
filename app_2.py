@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from bios_utils.asignador_capacidad import AsignadorCapacidad
-from bios_utils.problema import get_inventario_capacidad_planta
+from bios_utils.loader import get_inventario_capacidad_planta
 from tqdm import tqdm
 
 

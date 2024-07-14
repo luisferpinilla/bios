@@ -1,6 +1,8 @@
 from bios_utils.problema import Problema
 from tqdm import tqdm
 import pulp as pu
+import numpy as np
+import os
 
 class AlcanceObjetivoModel():
 
@@ -41,12 +43,28 @@ class AlcanceObjetivoModel():
         # Balance de masa puerto
         self.balance_masa_puerto = list()
 
+        # Capacidad de recepcion en planta
+        self.rest_recepcion_planta = list()
+
+        # Restriccion para Faltante para llegar al inventario objetivo
+        self.faltante_inventario_objetivo = list()
+
+        # Funcion objetivo: faltante inventario
+        self.fobj_faltante_inventario_objetivo = list()
+
+        # Funcion objetivo: Backorder
+        self.fobj_backorder = list()
+
         self.__gen_variables_planta()
         self.__gen_variables_despachos()
         self.__gen_variables_inventario_puerto()
         self.__gen_variables_despacho()
         self.__gen_rest_balance_planta()
         self.__gen_rest_balance_puerto()
+        self.__gen_rest_recepcion_planta()
+        self.__gen_rest_faltante_objetivo()
+        self.__gen_fob_faltante_objetivo()
+        self.__gen_fob_backorder()
 
 
     def __gen_variables_planta(self):
@@ -231,6 +249,89 @@ class AlcanceObjetivoModel():
 
                 self.balance_masa_puerto.append(rest)
 
+    def __gen_rest_recepcion_planta(self):
 
+        for planta in self.problema.tiempo_proceso.keys():
+            for periodo in self.problema.periodos:
+                recibo_a_planta = [self.problema.tiempo_proceso[planta][ingrediente] * self.recibo_planta[ingrediente][planta][periodo] for ingrediente in self.problema.ingredientes if periodo in self.recibo_planta[ingrediente][planta].keys()]
+                if len(recibo_a_planta)>0:
+                    rest_name = f'recepcion_{planta}_{periodo}'
+                    rest = (pu.lpSum(recibo_a_planta) <= self.problema.tiempo_disponible[planta], rest_name)
+                    self.rest_recepcion_planta.append(rest)
 
+    def __gen_rest_faltante_objetivo(self):
+        
+        for planta in self.inventario_planta.keys():
+            for ingrediente in self.inventario_planta[planta].keys():
+                # Calcular la media de consumo para cumplir el objetivo
+                consumo_planta = np.mean([c for t, c in self.problema.consumo_proyectado[planta][ingrediente].items()])        
+                objetivo = self.problema.objetivo_inventario[planta][ingrediente]        
+                if consumo_planta > 0 and objetivo > 0:      
+                    for periodo in self.problema.periodos:
+                        # IF + OB >= Objetivo
+                        IF = self.inventario_planta[planta][ingrediente][periodo]
+                        OB = self.faltante_objetivo_inventario[planta][ingrediente][periodo]                     
+                        rest_name = f'objetivo_inventario_{planta}_{ingrediente}_{periodo}'
+                        rest = (IF + OB >= objetivo, rest_name)
+                        self.faltante_inventario_objetivo.append(rest)
 
+    def __gen_fob_faltante_objetivo(self):
+
+        for planta in self.inventario_planta.keys():
+            for ingrediente in self.inventario_planta[planta].keys():
+                for periodo in self.problema.periodos:
+                    self.fobj_faltante_inventario_objetivo.append(self.faltante_objetivo_inventario[planta][ingrediente][periodo])
+
+    def __gen_fob_backorder(self):
+        for planta in self.backorder.keys():
+            for ingrediente in self.backorder[planta].keys():
+                for periodo in self.problema.periodos:
+                    self.fobj_backorder.append(100*self.problema.objetivo_inventario[planta][ingrediente]*self.backorder[planta][ingrediente][periodo])
+
+    def solve(self):
+        # Cantidad CPU habilitadas para trabajar
+        cpu_count = max(1, os.cpu_count()-1)
+
+        solucionador_01 = pu.LpProblem(name='Bios_Solver_fase_1', sense=pu.LpMinimize)
+
+        # Agregando funcion objetivo
+        solucionador_01 += pu.lpSum(self.fobj_faltante_inventario_objetivo)
+
+        # Agregando balance de masa puerto
+        for rest in self.balance_masa_puerto:
+            solucionador_01 += rest
+
+        # Agregando balance ce masa en planta
+        for rest in self.balance_masa_planta:
+            solucionador_01 += rest
+
+        # Agregando restriccion de recepcion en planta
+        for rest in self.rest_recepcion_planta:
+            solucionador_01 += rest
+
+        # Faltante de objetivo
+        for rest in self.faltante_inventario_objetivo:
+            solucionador_01 += rest
+
+        t_limit_minutes = 15
+
+        print('cpu count', cpu_count)
+        print('ejecutando ', len(self.problema.periodos), 'periodos')
+        engine_cbc = pu.PULP_CBC_CMD(
+            timeLimit=60*t_limit_minutes,
+            gapRel=0.05,
+            warmStart=False,
+            threads=cpu_count)
+
+        engine_glpk = pu.GLPK_CMD(
+            mip=True,
+            timeLimit=60*t_limit_minutes,
+            path=r"C:\glpk-4.65\w64\glpsol.exe",
+            
+        )
+
+        solucionador_01.writeLP('model.lp')
+
+        solucionador_01.solve(solver=engine_cbc)
+
+        pu.LpStatus[solucionador_01.status]

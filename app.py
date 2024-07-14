@@ -2,19 +2,19 @@ import streamlit as st
 import pandas as pd
 from bios_utils.asignador_capacidad import AsignadorCapacidad
 from bios_utils.objetivo_inventario import obtener_objetivo_inventario
-from bios_utils.problema import get_inventario_capacidad_planta
-from bios_utils.problema import get_llegadas_programadas_planta
-from bios_utils.problema import get_consumo_proyectado
-from bios_utils.problema import get_tiempos_proceso
-from bios_utils.problema import get_objetivo_inventario
-from bios_utils.problema import get_costo_operacion_portuaria
-from bios_utils.problema import get_transitos_a_puerto
-from bios_utils.problema import get_inventario_puerto
-from bios_utils.problema import get_inventario_puerto
-from bios_utils.problema import get_costo_almaceniento_puerto
-from bios_utils.problema import get_cargas_despachables
-from bios_utils.problema import get_fletes
-from bios_utils.problema import get_intercompany
+from bios_utils.loader import get_inventario_capacidad_planta
+from bios_utils.loader import get_llegadas_programadas_planta
+from bios_utils.loader import get_consumo_proyectado
+from bios_utils.loader import get_tiempos_proceso
+from bios_utils.loader import get_objetivo_inventario
+from bios_utils.loader import get_costo_operacion_portuaria
+from bios_utils.loader import get_transitos_a_puerto
+from bios_utils.loader import get_inventario_puerto
+from bios_utils.loader import get_inventario_puerto
+from bios_utils.loader import get_costo_almaceniento_puerto
+from bios_utils.loader import get_cargas_despachables
+from bios_utils.loader import get_fletes
+from bios_utils.loader import get_intercompany
 from datetime import datetime, timedelta
 from tqdm import tqdm
 import numpy as np
@@ -451,11 +451,11 @@ def resolver_modelo(bios_input_file: str):
 
             llegada_programada = llegadas_puerto[ingrediente][periodo]
 
-            if periodo in despachos_planta[ingrediente][planta].keys():
-                despacho_list = [despachos_planta[ingrediente][planta][periodo]
-                                 for planta in plantas if planta in despachos_planta[ingrediente].keys()]
-            else:
-                despacho_list = list()
+            despacho_list = list()
+            for planta in plantas:
+                if planta in despachos_planta[ingrediente].keys():
+                    if periodo in despachos_planta[ingrediente][planta].keys():
+                        despacho_list.append(despachos_planta[ingrediente][planta][periodo])
 
             rest_name = f'balance_puerto_{ingrediente}_{periodo}'
             rest = (I == Iant + llegada_programada -

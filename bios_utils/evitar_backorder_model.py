@@ -215,7 +215,7 @@ class EvitarBackorder():
                 for periodo in self.problema.periodos:
                     self.fobj_ejecucion_consumo.append(self.ejecusion_consumo[planta][ingrediente][periodo])
 
-    def solve(self):
+    def solve(self, t_limit_minutes=15):
         # Cantidad CPU habilitadas para trabajar
         cpu_count = max(1, os.cpu_count()-1)
 
@@ -236,10 +236,10 @@ class EvitarBackorder():
         for rest in self.rest_recepcion_planta:
             solucionador += rest
 
-        t_limit_minutes = 15
-
         print('cpu count', cpu_count)
         print('ejecutando ', len(self.problema.periodos), 'periodos')
+        print(f'ejecutando por {t_limit_minutes} minutos')
+
         engine_cbc = pu.PULP_CBC_CMD(
             timeLimit=60*t_limit_minutes,
             gapRel=0.05,

@@ -151,9 +151,9 @@ class AlcanceObjetivoModel():
                 
         for ingrediente in self.problema.ingredientes:
             self.inventario_puerto[ingrediente] = dict()
-            ii = self.problema.inventario_inicial_puerto[ingrediente]
+            ii = self.problema.inventario_totalizado_inicial_puerto[ingrediente]
             for periodo in self.problema.periodos:
-                arp = self.problema.llegadas_puerto[ingrediente][periodo]
+                arp = self.problema.llegadas_totalizadas_puerto[ingrediente][periodo]
                 ii += arp
                 var_name = f'inv_{ingrediente}_{periodo}'
                 var = pu.LpVariable(name=var_name, lowBound=0, cat=pu.LpInteger)
@@ -230,12 +230,12 @@ class AlcanceObjetivoModel():
                 I = self.inventario_puerto[ingrediente][periodo]
 
                 if self.problema.periodos.index(periodo) == 0:
-                    Iant = self.problema.inventario_inicial_puerto[ingrediente]
+                    Iant = self.problema.inventario_totalizado_inicial_puerto[ingrediente]
                 else:
                     periodo_ant = self.problema.periodos[self.problema.periodos.index(periodo)-1]
                     Iant = self.inventario_puerto[ingrediente][periodo_ant]
 
-                llegada_programada = self.problema.llegadas_puerto[ingrediente][periodo]
+                llegada_programada = self.problema.llegadas_totalizadas_puerto[ingrediente][periodo]
 
                 despacho_list = list()
                 for planta in self.problema.plantas:

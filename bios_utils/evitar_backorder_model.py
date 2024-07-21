@@ -20,7 +20,7 @@ class EvitarBackorder():
         self.inventario_proyectado = dict()
 
         # Backorder
-        self.ejecusion_consumo = dict()
+        self.ejecucion_consumo = dict()
 
         # Variables de despacho
         self.despachos_planta = dict()
@@ -62,12 +62,12 @@ class EvitarBackorder():
             self.inventario_planta[planta] = dict()
             self.inventario_proyectado[planta] = dict()
             self.faltante_objetivo_inventario[planta] = dict()
-            self.ejecusion_consumo[planta] = dict()
+            self.ejecucion_consumo[planta] = dict()
             for ingrediente in self.problema.ingredientes:
                 self.inventario_planta[planta][ingrediente] = dict()
                 self.inventario_proyectado[planta][ingrediente] = dict()
                 self.faltante_objetivo_inventario[planta][ingrediente] = dict()
-                self.ejecusion_consumo[planta][ingrediente] = dict()
+                self.ejecucion_consumo[planta][ingrediente] = dict()
                 ii = self.problema.inventario_planta[planta][ingrediente]
                 ca = self.problema.capacidad_planta[planta][ingrediente]
                 obj = self.problema.objetivo_inventario[planta][ingrediente]
@@ -99,7 +99,7 @@ class EvitarBackorder():
                         cat=pu.LpContinuous,
                         lowBound=0,
                         upBound=self.problema.consumo_proyectado[planta][ingrediente][periodo])
-                    self.ejecusion_consumo[planta][ingrediente][periodo] = ejecusion_var
+                    self.ejecucion_consumo[planta][ingrediente][periodo] = ejecusion_var
 
     def __gen_variables_despachos(self):
         for ingrediente in self.problema.ingredientes:
@@ -136,9 +136,9 @@ class EvitarBackorder():
                 
         for ingrediente in self.problema.ingredientes:
             self.inventario_puerto[ingrediente] = dict()
-            ii = self.problema.inventario_inicial_puerto[ingrediente]
+            ii = self.problema.inventario_totalizado_inicial_puerto[ingrediente]
             for periodo in self.problema.periodos:
-                arp = self.problema.llegadas_puerto[ingrediente][periodo]
+                arp = self.problema.llegadas_totalizadas_puerto[ingrediente][periodo]
                 ii += arp
                 var_name = f'inv_{ingrediente}_{periodo}'
                 var = pu.LpVariable(name=var_name, lowBound=0, cat=pu.LpInteger)
@@ -155,7 +155,7 @@ class EvitarBackorder():
                     
                     I = self.inventario_planta[planta][ingrediente][periodo]
                     llegada_planeada = self.problema.llegadas_planeadas_planta[planta][ingrediente][periodo]
-                    ejecusion = self.ejecusion_consumo[planta][ingrediente][periodo]
+                    ejecusion = self.ejecucion_consumo[planta][ingrediente][periodo]
                     if periodo in self.recibo_planta[ingrediente][planta].keys():
                         llegada_planta = self.recibo_planta[ingrediente][planta][periodo]
                     else:
@@ -180,12 +180,12 @@ class EvitarBackorder():
                 I = self.inventario_puerto[ingrediente][periodo]
 
                 if self.problema.periodos.index(periodo) == 0:
-                    Iant = self.problema.inventario_inicial_puerto[ingrediente]
+                    Iant = self.problema.inventario_totalizado_inicial_puerto[ingrediente]
                 else:
                     periodo_ant = self.problema.periodos[self.problema.periodos.index(periodo)-1]
                     Iant = self.inventario_puerto[ingrediente][periodo_ant]
 
-                llegada_programada = self.problema.llegadas_puerto[ingrediente][periodo]
+                llegada_programada = self.problema.llegadas_totalizadas_puerto[ingrediente][periodo]
 
                 despacho_list = list()
                 for planta in self.problema.plantas:
@@ -210,10 +210,10 @@ class EvitarBackorder():
                     self.rest_recepcion_planta.append(rest)
 
     def __gen_fob_ejecucion_consumo(self):
-        for planta in self.ejecusion_consumo.keys():
-            for ingrediente in self.ejecusion_consumo[planta].keys():
+        for planta in self.ejecucion_consumo.keys():
+            for ingrediente in self.ejecucion_consumo[planta].keys():
                 for periodo in self.problema.periodos:
-                    self.fobj_ejecucion_consumo.append(self.ejecusion_consumo[planta][ingrediente][periodo])
+                    self.fobj_ejecucion_consumo.append(self.ejecucion_consumo[planta][ingrediente][periodo])
 
     def solve(self, t_limit_minutes=15):
         # Cantidad CPU habilitadas para trabajar
@@ -258,3 +258,54 @@ class EvitarBackorder():
         solucionador.solve(solver=engine_cbc)
 
         pu.LpStatus[solucionador.status]
+
+    def get_reporte_despachos(self)->list:
+        reporte_despachos = list()
+        for ingrediente in self.despachos_planta.keys():
+            for planta in self.despachos_planta[ingrediente].keys():
+                for periodo in self.despachos_planta[ingrediente][planta].keys():
+                    valor = self.despachos_planta[ingrediente][planta][periodo].varValue
+                    tiempo_proceso = self.problema.tiempo_proceso[planta][ingrediente]
+                    dato = {
+                        'variable': 'despacho a planta',
+                        'ingrediente': ingrediente,
+                        'planta': planta,
+                        'periodo': periodo,
+                        'valor': valor,
+                        'tiempo_recepcion': valor*tiempo_proceso
+                    }
+                    reporte_despachos.append(dato)
+
+        return reporte_despachos
+      
+    def get_reporte_inventario_puerto(self)-> list:
+
+        reporte_inventario_puerto = list()
+        for ingrediente in self.inventario_puerto.keys():
+            for periodo in self.inventario_puerto[ingrediente].keys():
+                dato = {
+                    'variable': 'inventario en puerto',
+                    'ingrediente': ingrediente,
+                    'periodo': periodo,
+                    'valor': self.inventario_puerto[ingrediente][periodo].varValue
+                }
+                reporte_inventario_puerto.append(dato)
+
+        return reporte_inventario_puerto
+       
+    def get_reporte_inventario_planta(self)->list:
+        reporte_inventario_planta = list()
+        for planta in self.inventario_planta.keys():
+            for ingrediente in self.inventario_planta[planta].keys():
+                for periodo in self.inventario_planta[planta][ingrediente]:
+                    dato = {
+                        'variable': 'inventario en planta',
+                        'planta': planta,
+                        'ingrediente': ingrediente,
+                        'periodo': periodo,
+                        'valor': self.inventario_planta[planta][ingrediente][periodo].varValue,
+                        'capacidad': self.problema.capacidad_planta[planta][ingrediente],
+                        'consumo': self.problema.consumo_proyectado[planta][ingrediente][periodo],
+                        'objetivo':self.problema.objetivo_inventario[planta][ingrediente]
+                    }
+                    reporte_inventario_planta.append(dato)

@@ -180,3 +180,5 @@ db_data/
 # Model files
 *.mps
 
+# sqlite
+*.sqlite

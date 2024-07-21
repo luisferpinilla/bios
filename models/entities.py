@@ -1,5 +1,5 @@
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, UniqueConstraint, create_engine
 from sqlalchemy.orm import relationship
 
 Base = declarative_base()
@@ -15,6 +15,20 @@ class Empresa(Base):
     
     id = Column(Integer, primary_key=True)
     nombre = Column(String(15), nullable=False, unique=True)
+
+class Intercompany(Base):
+    __tablename__ = "intercompanies"
+    __table_args__ = (
+        UniqueConstraint('id_empresa_origen', 'id_empresa_destino', name='_unique_empresas_combination'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    id_empresa_origen = Column(Integer, ForeignKey("empresas.id"))
+    id_empresa_destino = Column(Integer, ForeignKey("empresas.id")) 
+    valor = Column(Float)
+
+    empresa_origen = relationship("Empresa", foreign_keys=[id_empresa_origen])
+    empresa_destino = relationship("Empresa", foreign_keys=[id_empresa_destino])
 
 class Ingrediente(Base):
     __tablename__ = "ingredientes"
@@ -128,9 +142,9 @@ class Despachos(Base):
 
 
 
-database_path = 'C:\\Users\\luisf\\Documents\\source\\bios\\database.accdb'
-connection_string = f"mssql+pyodbc:///?odbc_connect=DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={database_path};"
-# connection_string = "sqlite:///base.db"
+# database_path = 'C:\\Users\\luisf\\Documents\\source\\bios\\database.accdb'
+# connection_string = f"mssql+pyodbc:///?odbc_connect=DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={database_path};"
+connection_string = "sqlite:///base.db"
 
 
 engine = create_engine(connection_string, echo=True, future=True)

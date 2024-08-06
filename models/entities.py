@@ -141,12 +141,10 @@ class Despachos(Base):
     perido_despacho = relationship("Periodo")
 
 
-
-# database_path = 'C:\\Users\\luisf\\Documents\\source\\bios\\database.accdb'
-# connection_string = f"mssql+pyodbc:///?odbc_connect=DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={database_path};"
-connection_string = "sqlite:///base.db"
-
-
-engine = create_engine(connection_string, echo=True, future=True)
-
-Base.metadata.create_all(engine)
+def generar_archivo(database:str):
+    
+    connection_string = f"sqlite:///{database}"
+    
+    engine = create_engine(connection_string, echo=True, future=True)
+    
+    Base.metadata.create_all(engine)

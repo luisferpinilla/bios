@@ -1,0 +1,118 @@
+{
+    "file_name": "",
+    "fecha": "2024-07-31",
+    "intercompany": {
+        "contegral": {
+            "finca": 0.0043,
+            "contegral": 0.0
+        },
+        "finca": {
+            "finca": 0.0,
+            "contegral": 0.0043
+        }
+    },
+    "plantas": {
+        "envigado": {
+            "ingredientes": {
+                "maiz": {
+                    "tiempo_descarge": 25,
+                    "tiempo_limpieza": 15,
+                    "inventario_inicial": 50000,
+                    "safety_stock": 7,
+                    "consumo": [
+                        5000,
+                        5000,
+                        5000,
+                        5000,
+                        5000,
+                        5000,
+                        5000,
+                        5000,
+                        5000,
+                        5000
+                    ],
+                    "llegadas_planeadas": [
+                        2000,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0
+                    ],
+                    "costo_despacho":{
+                        "envigado":[
+                            2000,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            }
+        }
+    },
+    "importaciones": {
+        "maiz":{
+            "brq":{
+                "opp":{
+                    "contegral":{
+                        "impo_01":{
+                            "valor_cif":12,
+                            "inventario_inicial":25000,
+                            "llegadas":[
+                                0,
+                                0,
+                                0,
+                                50000,
+                                50000,
+                                50000,
+                                0,
+                                0,
+                                0,
+                                0
+                            ],
+                            "costo_almacenamiento":[
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0.25,
+                                0,
+                                0,
+                                0,
+                                0.12
+                            ],
+                            "despachos":{
+                                "envigado":[
+                                    0,
+                                    0,
+                                    0,
+                                    1,
+                                    1,
+                                    1,
+                                    1,
+                                    1,
+                                    0,
+                                    0
+                                ]
+                            }
+
+
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

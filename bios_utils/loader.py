@@ -26,7 +26,6 @@ def get_inventario_capacidad_planta(bios_input_file:str)->pd.DataFrame:
     
     return inventario_planta_df
 
-
 def get_llegadas_programadas_planta(bios_input_file:str)->pd.DataFrame:
     # llegadas programadas a planta
     df = pd.read_excel(
@@ -34,7 +33,6 @@ def get_llegadas_programadas_planta(bios_input_file:str)->pd.DataFrame:
     df = df.groupby(['planta', 'ingrediente', 'fecha_llegada'])[['cantidad']].sum().reset_index().rename(columns={
         'planta': 'Planta', 'ingrediente': 'Ingrediente', 'fecha_llegada': 'Fecha', 'cantidad': 'Llegadas_planeadas'})
     return df
-
 
 def get_consumo_proyectado(bios_input_file:str)->pd.DataFrame:
     # Consumo proyectado
@@ -61,7 +59,6 @@ def get_tiempos_proceso(bios_input_file:str)->pd.DataFrame:
                 value_name='Tiempo_Operacion').rename(columns={'planta': 'Planta', 'empresa': 'Empresa'})
     return df
 
-
 def get_objetivo_inventario(bios_input_file:str)->pd.DataFrame:
     # Objetivo de inventarios
     df = obtener_objetivo_inventario(bios_input_file=bios_input_file)
@@ -83,11 +80,11 @@ def get_costo_operacion_portuaria(bios_input_file:str)->pd.DataFrame:
     ).drop(columns='tipo_operacion')
     return costo_portuario_bodegaje_df, costo_portuario_directo_df
 
-
 def get_transitos_a_puerto(bios_input_file:str, cap_descarge=5000000)->pd.DataFrame:
     # Transitos a puerto
     df = pd.read_excel(io=bios_input_file, sheet_name='tto_puerto')
     transitos_list = list()
+    print('cargando tránsitos a puerto')
     for i in tqdm(df.index):
         # print('-----------------')
         # print(transitos_puerto_df.loc[i])
@@ -137,11 +134,11 @@ def get_transitos_a_puerto(bios_input_file:str, cap_descarge=5000000)->pd.DataFr
 
     return tto_puerto_df
 
-
 def get_inventario_puerto(bios_input_file:str)->pd.DataFrame:
 
     df = pd.read_excel(io=bios_input_file, sheet_name='inventario_puerto')
     inventario_puerto_list = list()
+    print('cargando inventario en puerto')
     for i in tqdm(df.index):
         empresa = df.loc[i]['empresa']
         operador = df.loc[i]['operador']
@@ -168,7 +165,6 @@ def get_inventario_puerto(bios_input_file:str)->pd.DataFrame:
 
     return inventario_puerto_df
 
-
 def get_cargas_despachables(bios_input_file:str)->pd.DataFrame:
 
     inventario_puerto_df = get_inventario_puerto(bios_input_file=bios_input_file)
@@ -180,7 +176,6 @@ def get_cargas_despachables(bios_input_file:str)->pd.DataFrame:
     cargas_despachables_df[(cargas_despachables_df['Inventario'] >= 34000) & (cargas_despachables_df['Llegada'] >= 0)]
     
     return cargas_despachables_df
-
 
 def get_costo_almaceniento_puerto(bios_input_file:str)->pd.DataFrame:
     # Leer el archivo de excel
@@ -199,3 +194,26 @@ def get_fletes(bios_input_file:str)->pd.DataFrame:
 def get_intercompany(bios_input_file:str)->pd.DataFrame:
     df = pd.read_excel(io=bios_input_file, sheet_name='venta_entre_empresas')
     return df
+
+
+def get_all_data(bios_input_file:str, cap_descarga=5000000)-> dict:
+    
+    dataframes = dict()
+    
+    dataframes['capacidad_planta'] = get_inventario_capacidad_planta(bios_input_file)
+    dataframes['llegadas_planta'] = get_llegadas_programadas_planta(bios_input_file)
+    dataframes['consumo_proyectado'] = get_consumo_proyectado(bios_input_file)
+    dataframes['tiempos_proceso'] = get_tiempos_proceso(bios_input_file)
+    dataframes['objetivo_inventario'] = get_objetivo_inventario(bios_input_file)
+    dataframes['costo_portuario_bodegaje'], dataframes['costo_portuario_directo'] = get_costo_operacion_portuaria(bios_input_file)
+    # dataframes['transitos_puerto'] = get_transitos_a_puerto(bios_input_file, cap_descarge=cap_descarga)
+    # dataframes['inventario_puerto'] = get_inventario_puerto(bios_input_file)
+    dataframes['cargas_despachables'] = get_cargas_despachables(bios_input_file)
+    dataframes['costo_almacenamiento'] = get_costo_almaceniento_puerto(bios_input_file)
+    dataframes['fletes'] = get_fletes(bios_input_file)
+    dataframes['intercompany'] =get_intercompany(bios_input_file)
+    
+    return dataframes
+    
+    
+    

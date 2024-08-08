@@ -7,8 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["streamlit", "run", "app.py"]
-
 # Expone el puerto en el que Streamlit correrá
 EXPOSE 8501
 

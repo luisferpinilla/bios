@@ -475,10 +475,9 @@ def resolver_modelo(bios_input_file: str):
             if periodo in recibo_planta[ingrediente][planta].keys():
                 recibo_a_plantas = [tiempos_proceso[planta][ingrediente] *
                                     recibo_planta[ingrediente][planta][periodo] for ingrediente in ingredientes]
-                rest_name = f'recepcion_{planta}_{periodo}'
-                rest = (pu.lpSum(recibo_a_plantas) <=
-                        tiempo_disponible[planta], rest_name)
-                rest_recepcion_planta.append(rest)
+        rest_name = f'recepcion_{planta}_{periodo}'
+        rest = (pu.lpSum(recibo_a_plantas) <= tiempo_disponible[planta], rest_name)
+        rest_recepcion_planta.append(rest)
 
     # %%
     # Faltante para llegar al inventario objetivo

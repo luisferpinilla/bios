@@ -162,6 +162,7 @@ cython_debug/
 
 data/*.xlsx
 data/*.xlsm
+data/*.json
 
 *.xlsx
 *.xlsm

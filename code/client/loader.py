@@ -1,9 +1,11 @@
 import pandas as pd
-from datetime import datetime, date
+import numpy as np
 from tqdm import tqdm
 from asignador_capacidad import AsignadorCapacidad
 import logging
 import json
+from itertools import accumulate
+from datetime import datetime, date
 
 
 class Loader():
@@ -23,12 +25,14 @@ class Loader():
         self._load_tiempos_proceso()
         self._load_inventario_puerto()
         self._load_transito_puerto()
+        self.limpiar_importaciones()
         self._load_operaciones_portuarias()
         self._load_fletes()
         self._load_intercompanies_cost()
         self._load_costos_almacenamiento_puerto()
         
-        self.limpiar_importaciones()
+        self.calcular_costos()
+        
         self.save()
         
     def _load_consumos(self):
@@ -369,6 +373,8 @@ class Loader():
             logging.critical(issue)
             raise Exception(issue)
             
+        df.set_index(fixed_columns, inplace=True)
+            
         for ingrediente, ingrediente_values in tqdm(self.problema['importaciones'].items()):
             for puerto, puerto_values in ingrediente_values.items():
                 for operador, operador_values in puerto_values.items():
@@ -404,7 +410,28 @@ class Loader():
                         
                         for importacion in lista_a_eliminar:
                             empresa_value.pop(importacion)
+                       
+    def calcular_costos(self):
+        for ingrediente, ingrediente_values in tqdm(self.problema['importaciones'].items()):
+            for puerto, puerto_values in ingrediente_values.items():
+                for operador, operador_values in puerto_values.items():
+                    for empresa, empresa_value in operador_values.items():
+                        for importacion, importacion_values in empresa_value.items():
+                            # Costos de almacenamiento
+                            costo_total_almacenamiento = list(self.cap_camion*(np.array(importacion_values['costo_almacenamiento']) + np.array(importacion_values['costos_bodegaje'])))
+                            importacion_values['costo_almacenamiento_camion'] = costo_total_almacenamiento
+                            importacion_values['ahorro_camion'] = list(accumulate(costo_total_almacenamiento[::-1]))[::-1]
                             
+                            # Costos de despacho por camion
+                            importacion_values['costo_despacho_camion'] = dict()
+                            for planta in importacion_values['flete_camion'].keys():
+                                fletes =  importacion_values['flete_camion'][planta] * np.ones(len(self.fechas))
+                                despacho_directo = self.cap_camion*np.array(importacion_values['costos_despacho_directo'])
+                                costo_intercompany = importacion_values['intercompany_camion'][planta] * np.ones(len(self.fechas))
+                                ahorro_almacenamiento = np.array(importacion_values['ahorro_camion'])
+                                costo_camion = fletes + despacho_directo + costo_intercompany - ahorro_almacenamiento
+                                importacion_values['costo_despacho_camion'][planta] = list(costo_camion)
+        
     
     def save(self):
         with open(self.file.replace('.xlsm', '.json'), 'w') as file:

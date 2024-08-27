@@ -242,7 +242,7 @@ class MinCostoTotal():
         engine_cbc = pu.PULP_CBC_CMD(
             timeLimit=60*t_limit_minutes,
             gapRel=0.05,
-            warmStart=False,
+            warmStart=True,
             threads=cpu_count)
 
         engine_glpk = pu.GLPK_CMD(
@@ -251,5 +251,5 @@ class MinCostoTotal():
             path=r"C:\glpk-4.65\w64\glpsol.exe"
         )
         
-        self.model.solve(solver=engine_glpk)
+        self.model.solve(solver=engine_cbc)
         

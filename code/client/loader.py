@@ -1,15 +1,20 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from asignador_capacidad import AsignadorCapacidad
+from client.asignador_capacidad import AsignadorCapacidad
 import logging
 import json
 from itertools import accumulate
 from datetime import datetime, date
 
-
 class Loader():
     def __init__(self, input_file:str, cap_descarge=5000000, cap_camion=34000) -> None:
+    
+
+        logging.basicConfig(level=logging.DEBUG,
+                            format='%(asctime)s %(levelname)s: %(message)s', 
+                            datefmt='%m/%d/%Y %I:%M:%S %p')
+            
         
         self.file = input_file
         self.problema = dict()
@@ -33,7 +38,13 @@ class Loader():
         
         self.calcular_costos()
         
-        self.save()
+        self.generar_variables_despacho()
+        
+        self.calcular_inventarios_importaciones()
+        
+        self.calcular_inventarios_planta()
+        
+        self.calcular_costo_backorder()
         
     def _load_consumos(self):
         
@@ -53,6 +64,8 @@ class Loader():
         
         self.problema["fecha"] = self.fechas[0]
         
+        self.problema["fechas"] = self.fechas
+        
         df.set_index(fixed_columns, inplace=True)
         
         self.problema["plantas"] = dict()
@@ -68,8 +81,9 @@ class Loader():
                     
                 if i[1] not in self.problema["plantas"][i[0]]["ingredientes"].keys():
                     self.problema["plantas"][i[0]]["ingredientes"][i[1]] = dict()
-                 
-                self.problema["plantas"][i[0]]["ingredientes"][i[1]]['consumo'] = list(df.loc[i]) 
+                
+                consumo = [int(x) for x in df.loc[i]]
+                self.problema["plantas"][i[0]]["ingredientes"][i[1]]['consumo'] = consumo
 
     def _load_inventario_planta(self):
         
@@ -101,8 +115,8 @@ class Loader():
                     if inventario == 0:
                         logging.warning("%s no tiene inventario", i)
                     
-                    self.problema['plantas'][i[0]]['ingredientes'][i[1]]['capacidad'] = capacidad
-                    self.problema['plantas'][i[0]]['ingredientes'][i[1]]['inventario_inicial'] = inventario
+                    self.problema['plantas'][i[0]]['ingredientes'][i[1]]['capacidad'] = int(capacidad)
+                    self.problema['plantas'][i[0]]['ingredientes'][i[1]]['inventario_inicial'] = int(inventario)
                 
             else:
                 logging.warning("%s no esta en la lista de plantas con consumo proyectado de %s", i[0], i[1])
@@ -129,9 +143,9 @@ class Loader():
                 for t in self.fechas:
                     index = (planta, ingrediente, t)
                     if index in df.index:
-                        self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegada_planeada'].append(df.loc[index]['cantidad'])
+                        self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegada_planeada'].append(int(df.loc[index]['cantidad']))
                     else:
-                        self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegada_planeada'].append(0.0)
+                        self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegada_planeada'].append(0)
             
     def _load_tiempos_proceso(self):
         
@@ -144,10 +158,10 @@ class Loader():
         for planta in tqdm(self.problema['plantas'].keys()):
             
             self.problema['plantas'][planta]['empresa'] = df.loc[planta]['empresa']
-            self.problema['plantas'][planta]['tiempo_disponible'] = df.loc[planta]['operacion_minutos']*df.loc[planta]['plataformas']
+            self.problema['plantas'][planta]['tiempo_disponible'] = int(df.loc[planta]['operacion_minutos']*df.loc[planta]['plataformas'])
             
             for ingrediente in self.problema['plantas'][planta]['ingredientes'].keys():
-                self.problema['plantas'][planta]['ingredientes'][ingrediente]['tiempo_proceso'] = df.loc[planta][ingrediente]
+                self.problema['plantas'][planta]['ingredientes'][ingrediente]['tiempo_proceso'] = int(df.loc[planta][ingrediente])
 
     def _load_inventario_puerto(self):
         
@@ -190,8 +204,8 @@ class Loader():
                 self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['llegadas'] = len(self.fechas)*[0.0]
                         
             self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['fecha_llegada'] = fecha_llegada
-            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['valor_cif'] = valor_cif
-            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario_inicial'] = cantidad
+            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['valor_cif'] = float(valor_cif)
+            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario_inicial'] = int(cantidad)
             
     def _load_transito_puerto(self):
         
@@ -298,7 +312,7 @@ class Loader():
                                 
                                 if i in df.index and last_arrival_index >= 0:
                                     if t == self.fechas[last_arrival_index]:
-                                        importacion_values['costos_bodegaje'].append(df.loc[i]['valor_kg'])
+                                        importacion_values['costos_bodegaje'].append(float(df.loc[i]['valor_kg']))
                                     else:
                                         importacion_values['costos_bodegaje'].append(0.0)
                                 else:
@@ -307,7 +321,7 @@ class Loader():
                                 i = ('directo', operador, puerto, ingrediente)
                                 
                                 if i in df.index and importacion_values['llegadas'][self.fechas.index(t)]>0.0:
-                                    importacion_values['costos_despacho_directo'].append(df.loc[i]['valor_kg'])
+                                    importacion_values['costos_despacho_directo'].append(float(df.loc[i]['valor_kg']))
                                 else:
                                     importacion_values['costos_despacho_directo'].append(0.0)
                                 
@@ -332,7 +346,7 @@ class Loader():
                                 
                                 if i in df.index:
                                     for c in df.columns:
-                                        importacion_values['flete_camion'][c] = self.cap_camion*df.loc[i][c]
+                                        importacion_values['flete_camion'][c] = int(self.cap_camion*df.loc[i][c])
                             
     def _load_intercompanies_cost(self):
         
@@ -352,7 +366,7 @@ class Loader():
                             importacion_values['intercompany_camion'] = dict()
                             for planta in importacion_values['flete_camion'].keys():
                                 i = (empresa, self.problema['plantas'][planta]['empresa'])
-                                importacion_values['intercompany_camion'][planta] = self.cap_camion*df.loc[i]['intercompany']*importacion_values['valor_cif']
+                                importacion_values['intercompany_camion'][planta] = float(self.cap_camion*df.loc[i]['intercompany']*importacion_values['valor_cif'])
         
     def _load_costos_almacenamiento_puerto(self):
         
@@ -419,6 +433,7 @@ class Loader():
                         for importacion, importacion_values in empresa_value.items():
                             # Costos de almacenamiento
                             costo_total_almacenamiento = list(self.cap_camion*(np.array(importacion_values['costo_almacenamiento']) + np.array(importacion_values['costos_bodegaje'])))
+                            costo_total_almacenamiento = [int(x) for x in costo_total_almacenamiento]
                             importacion_values['costo_almacenamiento_camion'] = costo_total_almacenamiento
                             importacion_values['ahorro_camion'] = list(accumulate(costo_total_almacenamiento[::-1]))[::-1]
                             
@@ -427,11 +442,185 @@ class Loader():
                             for planta in importacion_values['flete_camion'].keys():
                                 fletes =  importacion_values['flete_camion'][planta] * np.ones(len(self.fechas))
                                 despacho_directo = self.cap_camion*np.array(importacion_values['costos_despacho_directo'])
+                                despacho_directo = [int(x) for x in despacho_directo]
                                 costo_intercompany = importacion_values['intercompany_camion'][planta] * np.ones(len(self.fechas))
+                                costo_intercompany = [int(x) for x in costo_intercompany]
                                 ahorro_almacenamiento = np.array(importacion_values['ahorro_camion'])
+                                ahorro_almacenamiento = [int(x) for x in ahorro_almacenamiento]
                                 costo_camion = fletes + despacho_directo + costo_intercompany - ahorro_almacenamiento
+                                costo_camion = [int(x) for x in costo_camion]
                                 importacion_values['costo_despacho_camion'][planta] = list(costo_camion)
+
+    def generar_variables_despacho(self):
         
+        for ingrediente in self.problema['importaciones'].keys():
+            
+            for puerto in self.problema['importaciones'][ingrediente].keys():
+                
+                for operador in self.problema['importaciones'][ingrediente][puerto].keys():
+                
+                    for empresa in self.problema['importaciones'][ingrediente][puerto][operador].keys():
+                
+                        for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
+                            
+                            despachos = dict()
+                            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'] = despachos
+                            for planta in self.problema['plantas'].keys():
+                                despachos[planta] = dict()
+                                
+                                if ingrediente in self.problema['plantas'][planta]['ingredientes'].keys():
+                                    
+                                    max_ingreso_tiempo = int(self.problema['plantas'][planta]['tiempo_disponible']/self.problema['plantas'][planta]['ingredientes'][ingrediente]['tiempo_proceso'])
+                                    max_ingreso_cap_alm = int(self.problema['plantas'][planta]['ingredientes'][ingrediente]['capacidad']/self.cap_camion)
+                                   
+                                    despachos[planta]['minimo'] = [int(x) for x in list(np.zeros(len(self.fechas)))]
+                                    despachos[planta]['safety_stock'] = [int(x) for x in list(np.zeros(len(self.fechas)))]
+                                    despachos[planta]['target'] = [int(x) for x in list(np.zeros(len(self.fechas)))]
+                                    despachos[planta]['maximo'] = min(max_ingreso_tiempo,max_ingreso_tiempo,max_ingreso_cap_alm)
+                                    
+                                    if 'llegadas' not in self.problema['plantas'][planta]['ingredientes'][ingrediente].keys():
+                                        self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegadas'] = dict()
+                                    
+                                    llegadas = self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegadas']
+                                    
+                                    llegadas[f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"] = [int(x) for x in list(np.zeros(len(self.fechas)))]
+                                    
+                                    
+
+                                    
+
+    def calcular_inventarios_importaciones(self):
+        
+        importaciones = self.problema['importaciones']
+        
+        periodos = len(self.fechas)
+        
+        for ingrediente in importaciones.keys():
+            
+            for puerto in importaciones[ingrediente].keys():
+                
+                for operador in importaciones[ingrediente][puerto].keys():
+                
+                    for empresa in importaciones[ingrediente][puerto][operador].keys():
+                
+                        for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
+                            
+                            inventario = importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario_inicial']
+                            
+                            importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'] = list()
+                            
+                            for t in range(periodos):
+                                
+                                llegadas = importaciones[ingrediente][puerto][operador][empresa][importacion]['llegadas'][t]
+                        
+                                despachos = 0
+                                
+                                for planta, lista in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'].items():
+                                    if 'minimo' in lista.keys():
+                                        despachos += lista['minimo'][t]
+                                    
+                                    if 'safety_stock' in lista.keys():
+                                        despachos += lista['safety_stock'][t]
+                                        
+                                    if 'target' in lista.keys():
+                                        despachos += lista['target'][t]  
+                                        
+                                despachos = despachos*self.cap_camion
+                                
+                                inventario = inventario + llegadas - despachos
+                                
+                                importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'].append(int(inventario))
+                      
+
+    def calcular_inventarios_planta(self):
+        
+        plantas = self.problema['plantas']
+        periodos = len(self.fechas)
+        importaciones = self.problema['importaciones']
+        
+        for planta in plantas.keys():
+            for ingrediente in plantas[planta]['ingredientes'].keys():
+                    
+                if 'capacidad' not in plantas[planta]['ingredientes'][ingrediente].keys() :
+                    logging.critical(f"No hay capacidad para {ingrediente} en la planta {planta}")
+                    
+                    if 'inventario_inicial' not in plantas[planta]['ingredientes'][ingrediente].keys():
+                        logging.critical(f"No hay inventario inicial de {ingrediente} en la planta {planta}")
+                
+                else:
+                    
+                    inventario = plantas[planta]['ingredientes'][ingrediente]['inventario_inicial']
+                    
+                    plantas[planta]['ingredientes'][ingrediente]['inventario'] = list()
+                    
+                    plantas[planta]['ingredientes'][ingrediente]['inventario'] = list()
+                    plantas[planta]['ingredientes'][ingrediente]['backorder'] = list()
+                
+                    
+                    
+                    for t in range(periodos):
+                        
+                        despachos = 0
+                        
+                        consumo = plantas[planta]['ingredientes'][ingrediente]['consumo'][t]
+                        llegada_planeada = plantas[planta]['ingredientes'][ingrediente]['llegada_planeada'][t]
+                        
+                        if t >= 2 and t <= periodos-2:
+                        
+                            despachos = 0
+                            
+                            if ingrediente in importaciones.keys():
+                            
+                                for puerto in importaciones[ingrediente].keys():
+                                    
+                                    for operador in importaciones[ingrediente][puerto].keys():
+                                    
+                                        for empresa in importaciones[ingrediente][puerto][operador].keys():
+                                    
+                                            for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
+                                                
+                                                if planta in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
+                                                
+                                                    lista = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]
+                                                    
+                                                    if 'minimo' in lista.keys():
+                                                        despachos += lista['minimo'][t-2]
+                                                    
+                                                    if 'safety_stock' in lista.keys():
+                                                        despachos += lista['safety_stock'][t-2]
+                                                        
+                                                    if 'target' in lista.keys():
+                                                        despachos += lista['target'][t-2]
+                                  
+                        despachos = despachos*self.cap_camion
+                        
+                        if inventario - consumo + despachos + llegada_planeada >= 0:
+                                                    
+                            inventario = inventario - consumo + despachos + llegada_planeada
+                            backorder = 0
+                            
+                        else:
+                            
+                            backorder = consumo - inventario - despachos - llegada_planeada 
+                            inventario = 0
+                        
+                        plantas[planta]['ingredientes'][ingrediente]['inventario'].append(inventario)
+                        plantas[planta]['ingredientes'][ingrediente]['backorder'].append(backorder)
+           
+    def calcular_costo_backorder(self):
+        
+        costo_backorder = dict()
+        for ingrediente in self.problema['importaciones'].keys() :
+            costo_backorder[ingrediente] = list()
+            for puerto in self.problema['importaciones'][ingrediente].keys():
+                for operador in self.problema['importaciones'][ingrediente][puerto].keys():
+                    for empresa in self.problema['importaciones'][ingrediente][puerto][operador].keys():
+                        for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
+                            for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
+                                for planta in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'].keys():
+                                    costo_backorder[ingrediente].append(max(self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta]))
+                                
+        self.problema['costo_backorder'] = {ingrediente:max(costos)/self.problema['capacidad_camion'] for ingrediente,costos in costo_backorder.items()}   
     
     def save(self):
         with open(self.file.replace('.xlsm', '.json'), 'w') as file:

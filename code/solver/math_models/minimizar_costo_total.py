@@ -5,6 +5,7 @@ Created on Mon Aug 26 06:57:03 2024
 @author: luisf
 """
 import pulp as pu
+import os
 
 class MinCostoTotal():
     
@@ -221,6 +222,9 @@ class MinCostoTotal():
     
     def solve(self):
         
+        # Cantidad CPU habilitadas para trabajar
+        cpu_count = max(1, os.cpu_count()-1)
+        
         # add funcion objetivo
         self.model += pu.lpSum(self.funcion_objetivo)
             
@@ -230,7 +234,22 @@ class MinCostoTotal():
         for rest in self.balance_puerto:
             self.model += rest
         
+        t_limit_minutes = 25
+
+        print('cpu count', cpu_count)
+        print('t_limit_minutes ', t_limit_minutes)
         
+        engine_cbc = pu.PULP_CBC_CMD(
+            timeLimit=60*t_limit_minutes,
+            gapRel=0.05,
+            warmStart=False,
+            threads=cpu_count)
+
+        engine_glpk = pu.GLPK_CMD(
+            mip=True,
+            timeLimit=60*t_limit_minutes,
+            path=r"C:\glpk-4.65\w64\glpsol.exe"
+        )
         
-        self.model.solve()
+        self.model.solve(solver=engine_glpk)
         

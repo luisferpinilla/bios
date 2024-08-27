@@ -244,12 +244,64 @@ class MinCostoTotal():
             gapRel=0.05,
             warmStart=True,
             threads=cpu_count)
-
-        engine_glpk = pu.GLPK_CMD(
-            mip=True,
-            timeLimit=60*t_limit_minutes,
-            path=r"C:\glpk-4.65\w64\glpsol.exe"
-        )
         
         self.model.solve(solver=engine_cbc)
+
+
+    def report_inventario_planta(self):
+
+        for planta in self.problema['plantas'].keys():
+            for ingrediente in self.problema['plantas'][planta]['ingredientes'].keys():
+                for t in range(len(self.problema['fechas'])):
+                    # Variables de inventario     
+                    var = self.inv_planta_var[planta][ingrediente][t]
+                    self.problema['plantas'][planta]['ingredientes'][ingrediente]['inventario'][t] = var.varValue
+                    
+                    # Variables de consumo
+                    var = self.consumo_planta_var[planta][ingrediente][t]
+                    self.problema['plantas'][planta]['ingredientes'][ingrediente]['consumo'][t] = var.varValue
+
+    def report_despachos(self):
+        # Generar variables de despacho (y recepción)
+        for ingrediente in self.problema['importaciones'].keys():
+            for puerto in self.problema['importaciones'][ingrediente].keys():
+                for operador in self.problema['importaciones'][ingrediente][puerto].keys():
+                    for empresa in self.problema['importaciones'][ingrediente][puerto][operador].keys():
+                        for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
+                            max_despacho = int(self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][-1]/self.problema['capacidad_camion'])
+                            for planta in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
+                                for t in range(len(self.problema['fechas'])-2):
+                                    var_name = f"desp_{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}_{planta}_{t}"
+                                    if 'maximo' in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta].keys():
+                                        maximo = self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['maximo']
+                                        var = pu.LpVariable(name=var_name, lowBound=0, upBound=min(maximo,max_despacho), cat=pu.LpInteger)
+                                        var.setInitialValue(0)
+                                        name = f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"
+                                        
+                                        if name not in self.despacho_var.keys():
+                                            self.despacho_var[name] =  dict()
+                                            
+                                        if planta not in self.despacho_var[name].keys():
+                                            self.despacho_var[name][planta] = dict()
+                                            
+                                        self.despacho_var[name][planta][t]=var
+                                        
+                                        if planta not in self.recibos_var.keys():
+                                            self.recibos_var[planta] = dict()
+                                            
+                                        if ingrediente not in self.recibos_var[planta].keys():
+                                            self.recibos_var[planta][ingrediente] = dict()
+                                            self.recibos_var[planta][ingrediente][0] = list()
+                                            self.recibos_var[planta][ingrediente][1] = list()
+                                        
+                                        t_llegada = t+2
+                                        
+                                        if t_llegada not in self.recibos_var[planta][ingrediente].keys():
+                                            self.recibos_var[planta][ingrediente][t_llegada] = list()
+                                        
+                                        self.recibos_var[planta][ingrediente][t_llegada].append(var)
         
+
+    def gen_reports(self):
+
+        self.report_inventario_planta()

@@ -199,7 +199,10 @@ class MinCostoTotal():
                     utilidad_consumo = self.problema['costo_backorder'][ingrediente]
                 else:
                     utilidad_consumo = max(self.problema['costo_backorder'].values())
-                for t in range(len(self.problema['fechas'])):       
+                    
+                total_periodos = len(self.problema['fechas'])
+                
+                for t in range(total_periodos):       
                     var = self.consumo_planta_var[planta][ingrediente][t]
                     self.funcion_objetivo.append(utilidad_consumo*var)
         
@@ -237,15 +240,21 @@ class MinCostoTotal():
         t_limit_minutes = 25
 
         print('cpu count', cpu_count)
-        print('t_limit_minutes ', t_limit_minutes)
+        print('t_limit_minutes ', t_limit_minutes, "/", t_limit_minutes*60,"seconds")
+        
+        engine_glpk = pu.GLPK_CMD(
+            mip=True,
+            timeLimit=60*t_limit_minutes,
+            options=["--mipgap", "0.05"]
+        )
         
         engine_cbc = pu.PULP_CBC_CMD(
             timeLimit=60*t_limit_minutes,
-            gapRel=0.05,
+            # gapRel=0.05,
             warmStart=True,
             threads=cpu_count)
         
-        self.model.solve(solver=engine_cbc)
+        self.model.solve(solver=engine_glpk)
 
 
     def report_inventario_planta(self):
@@ -259,49 +268,49 @@ class MinCostoTotal():
                     
                     # Variables de consumo
                     var = self.consumo_planta_var[planta][ingrediente][t]
-                    self.problema['plantas'][planta]['ingredientes'][ingrediente]['consumo'][t] = var.varValue
+                    consumo_inicial = self.problema['plantas'][planta]['ingredientes'][ingrediente]['consumo'][t]
+                    consumo_actual = var.varValue
+                    backorder_actual = consumo_inicial - consumo_actual
+                    
+                    self.problema['plantas'][planta]['ingredientes'][ingrediente]['consumo'][t] = consumo_actual
+                    self.problema['plantas'][planta]['ingredientes'][ingrediente]['backorder'][t] = backorder_actual
+                    
 
     def report_despachos(self):
-        # Generar variables de despacho (y recepción)
-        for ingrediente in self.problema['importaciones'].keys():
-            for puerto in self.problema['importaciones'][ingrediente].keys():
-                for operador in self.problema['importaciones'][ingrediente][puerto].keys():
-                    for empresa in self.problema['importaciones'][ingrediente][puerto][operador].keys():
-                        for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
-                            max_despacho = int(self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][-1]/self.problema['capacidad_camion'])
-                            for planta in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
-                                for t in range(len(self.problema['fechas'])-2):
-                                    var_name = f"desp_{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}_{planta}_{t}"
-                                    if 'maximo' in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta].keys():
-                                        maximo = self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['maximo']
-                                        var = pu.LpVariable(name=var_name, lowBound=0, upBound=min(maximo,max_despacho), cat=pu.LpInteger)
-                                        var.setInitialValue(0)
-                                        name = f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"
-                                        
-                                        if name not in self.despacho_var.keys():
-                                            self.despacho_var[name] =  dict()
-                                            
-                                        if planta not in self.despacho_var[name].keys():
-                                            self.despacho_var[name][planta] = dict()
-                                            
-                                        self.despacho_var[name][planta][t]=var
-                                        
-                                        if planta not in self.recibos_var.keys():
-                                            self.recibos_var[planta] = dict()
-                                            
-                                        if ingrediente not in self.recibos_var[planta].keys():
-                                            self.recibos_var[planta][ingrediente] = dict()
-                                            self.recibos_var[planta][ingrediente][0] = list()
-                                            self.recibos_var[planta][ingrediente][1] = list()
-                                        
-                                        t_llegada = t+2
-                                        
-                                        if t_llegada not in self.recibos_var[planta][ingrediente].keys():
-                                            self.recibos_var[planta][ingrediente][t_llegada] = list()
-                                        
-                                        self.recibos_var[planta][ingrediente][t_llegada].append(var)
+        # Generar agregar variables de despacho a problema
+        for var_name in self.despacho_var.keys():
+            campos = var_name.split('_')
+            ingrediente = campos[0]
+            puerto = campos[1]
+            operador = campos[2]
+            empresa = campos[3]
+            importacion = campos[4]
+            for planta in self.despacho_var[var_name].keys():
+                for t, var in self.despacho_var[var_name][planta].items():
+                    if var.varValue > 0:
+                        # print(var_name, planta, t, var.varValue)
+                        self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['minimo'][t] = int(max(0,var.varValue))
+       
+    def report_inventario_puerto(self):
+        
+        for var_name in self.inv_puerto_var.keys():
+            campos = var_name.split('_')
+            ingrediente = campos[0]
+            puerto = campos[1]
+            operador = campos[2]
+            empresa = campos[3]
+            importacion = campos[4]
+        
+            for t in range(len(self.inv_puerto_var[var_name])):
+                var = self.inv_puerto_var[var_name][t]
+                if var.varValue > 0:
+                    # print(var_name, var.varValue)
+                    self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][t] = int(max(0,var.varValue))
+                    # print(var_name, t, var.varValue, problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][t])
         
 
     def gen_reports(self):
 
         self.report_inventario_planta()
+        self.report_despachos()
+        self.report_inventario_puerto()

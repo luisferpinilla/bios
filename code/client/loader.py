@@ -35,6 +35,7 @@ class Loader():
         self._load_fletes()
         self._load_intercompanies_cost()
         self._load_costos_almacenamiento_puerto()
+        self._load_safety_stock()
         
         self.calcular_costos()
         
@@ -408,6 +409,31 @@ class Loader():
                             if sum(importacion_values['costo_almacenamiento']) == 0.0:
                                 logging.warning(f"la importacion de {ingrediente} en {puerto} con {operador} {importacion} parece no tener costos de almacenamiento asociados")
     
+    def _load_safety_stock(self):
+
+        
+        df = pd.read_excel(self.file, sheet_name='safety_stock')
+        
+        df.set_index(['planta', 'ingrediente'], inplace=True)
+        
+        cap_camion = self.problema['capacidad_camion']
+        
+        for planta in self.problema['plantas'].keys():
+            for ingrediente in self.problema['plantas'][planta]['ingredientes'].keys():
+                if 'consumo' in self.problema['plantas'][planta]['ingredientes'][ingrediente].keys():
+                    i = (planta, ingrediente)
+                    consumo_medio =np.mean(np.array(self.problema['plantas'][planta]['ingredientes'][ingrediente]['consumo']))
+                    capacidad = self.problema['plantas'][planta]['ingredientes'][ingrediente]['capacidad']
+         
+                    if i in df.index:
+                        ss_dias = df.loc[i]['dias_ss']
+                        ss_kg = int(consumo_medio * ss_dias)
+                        if ss_kg > 0:
+                            if capacidad - ss_kg > 2*cap_camion:
+                                self.problema['plantas'][planta]['ingredientes'][ingrediente]['safety_stock'] = ss_kg*np.ones(len(self.problema['fechas']))
+                            else:
+                                logging.warning("La capacidad de almacenamiento de la planta %s para el ingrediente %s no es suficiente para mantener un SS de %s días equivalente a %s kilos y recibir al menos 2 camiones", planta, ingrediente, ss_dias, ss_kg)
+        
     
     def limpiar_importaciones(self):
         # Borra todas las importaciones cuyas llegadas más inventarios no tengan al menos un camion despachable
@@ -620,7 +646,7 @@ class Loader():
                                 for planta in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'].keys():
                                     costo_backorder[ingrediente].append(max(self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta]))
                                 
-        self.problema['costo_backorder'] = {ingrediente:max(costos)/self.problema['capacidad_camion'] for ingrediente,costos in costo_backorder.items()}   
+        self.problema['costo_backorder'] = {ingrediente:100*max(costos)/self.problema['capacidad_camion'] for ingrediente,costos in costo_backorder.items()}   
     
     def save(self):
         with open(self.file.replace('.xlsm', '.json'), 'w') as file:

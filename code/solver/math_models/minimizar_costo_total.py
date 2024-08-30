@@ -236,14 +236,6 @@ class MinCostoTotal():
         # Generar Funcion Objetivo
         self.gen_funcion_objetivo()
         
-        
-    
-    
-    def solve(self):
-        
-        # Cantidad CPU habilitadas para trabajar
-        cpu_count = max(1, os.cpu_count()-1)
-        
         # add funcion objetivo
         self.model += pu.lpSum(self.funcion_objetivo)
             
@@ -252,6 +244,18 @@ class MinCostoTotal():
             
         for rest in self.balance_puerto:
             self.model += rest
+            
+        for rest in self.cap_recepcion_planta:
+            self.model += rest
+        
+    
+    
+    def solve(self):
+        
+        # Cantidad CPU habilitadas para trabajar
+        cpu_count = max(1, os.cpu_count()-1)
+        
+
         
         t_limit_minutes = 25
 

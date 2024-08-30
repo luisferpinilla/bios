@@ -72,7 +72,6 @@ class MinCostoTotal():
                                             self.recibos_var[planta][ingrediente][t_llegada] = list()
                                         
                                         self.recibos_var[planta][ingrediente][t_llegada].append(var)
-         
                                         
     def gen_variables_inventario_importacion(self):
         # Generar variables de inventario en puerto
@@ -88,7 +87,7 @@ class MinCostoTotal():
                                 var = pu.LpVariable(name=var_name, lowBound=0, upBound=maximo, cat=pu.LpContinuous)
                                 var.setInitialValue(maximo)
                                 self.inv_puerto_var[f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"].append(var)
-                                        
+
     def gen_variables_inventario_planta(self):
         
         for planta in self.problema['plantas'].keys():
@@ -112,7 +111,7 @@ class MinCostoTotal():
                     var = pu.LpVariable(name=var_name, lowBound=0, upBound=consumo, cat=pu.LpContinuous)
                     var.setInitialValue(min(consumo, inv_act))
                     self.consumo_planta_var[planta][ingrediente].append(var)
-                
+
     def gen_rest_balance_puerto(self):
         
         # inv_act = inv_ant + llegadas - despachos
@@ -141,8 +140,7 @@ class MinCostoTotal():
                                 rest = (inv_actual == inv_ant + llegadas - pu.lpSum(despachos) ,rest_name)
                                 
                                 self.balance_puerto.append(rest)
-                                
-                                
+
     def gen_rest_balance_planta(self):
         # inv_act = inv_ant + llegadas_planeadas + llegadas - consumo
         
@@ -172,7 +170,22 @@ class MinCostoTotal():
                     rest = (inv_actual == inv_ant + llegada_planeada + pu.lpSum(llegadas) - consumo, rest_name)
                     
                     self.balance_planta.append(rest)
-        
+
+    def gen_rest_capacidad_recepcion(self):
+
+        for planta in self.recibos_var.keys():
+            for t in range(len(self.problema['fechas'])):
+                rest_name = f"recepcion_{planta}_{t}"
+                recibos = list()
+                for ingrediente in self.recibos_var[planta].keys():
+                    tiempo_ingrediente = self.problema['plantas'][planta]['ingredientes'][ingrediente]['tiempo_proceso']
+                    var = self.recibos_var[planta][ingrediente][t]
+                    recibos.append(tiempo_ingrediente*var)
+                    
+                rest = (pu.lpSum(recibos) <= self.problema['plantas'][planta]['tiempo_disponible'], rest_name)
+
+                self.cap_recepcion_planta.append(rest)
+
         
     def gen_funcion_objetivo(self):
         # MAx sum consumo - costo_despacho_Camion
@@ -216,6 +229,7 @@ class MinCostoTotal():
         # Generar restricciones
         self.gen_rest_balance_puerto()
         self.gen_rest_balance_planta()
+        self.gen_rest_capacidad_recepcion()
         
         # Generar Funcion Objetivo
         self.gen_funcion_objetivo()
@@ -244,7 +258,7 @@ class MinCostoTotal():
         
         engine_glpk = pu.GLPK_CMD(
             mip=True,
-            timeLimit=60*t_limit_minutes,
+            # timeLimit=60*t_limit_minutes,
             options=["--mipgap", "0.05"]
         )
         

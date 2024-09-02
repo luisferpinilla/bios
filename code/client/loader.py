@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from client.asignador_capacidad import AsignadorCapacidad
+from code.client.asignador_capacidad import AsignadorCapacidad
 import logging
 import json
 from itertools import accumulate
@@ -1049,7 +1049,7 @@ class Loader():
                                 
         puertos_df = pd.DataFrame(puertos_df)
         
-        puertos_df.to_csv(r"C:\Users\luisf\Documents\reporte_puerto.csv")
+        # puertos_df.to_csv(r"C:\Users\luisf\Documents\reporte_puerto.csv")
         
         # Guardando reporte de despachos
         despachos_df = list()
@@ -1099,7 +1099,7 @@ class Loader():
                                 
         despachos_df = pd.DataFrame(despachos_df)
         
-        despachos_df.to_csv(r"C:\Users\luisf\Documents\reporte_despachos.csv")
+        # despachos_df.to_csv(r"C:\Users\luisf\Documents\reporte_despachos.csv")
         
         
         # Guardando reporte de despachos
@@ -1137,7 +1137,9 @@ class Loader():
                         
         plantas_df = pd.DataFrame(plantas_df)
         
-        plantas_df.to_csv(r"C:\Users\luisf\Documents\reporte_plantas.csv")
+        # plantas_df.to_csv(r"C:\Users\luisf\Documents\reporte_plantas.csv")
+
+        return plantas_df, puertos_df, despachos_df
         
         
             

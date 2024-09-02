@@ -13,35 +13,16 @@ os.chdir(working_dir)
 
 print(f"cargando el archivo \"{input_file}\"")
 
-
-
-
-
-
 from client.loader import Loader
 loader = Loader(input_file)
 loader.load_data()
 # problema = loader.problema
 
 # loader.problema = problema
-
 loader.gen_solucion_fase_01()
-# loader.gen_solucion_fase_02()
+loader.gen_solucion_fase_02()
+loader.save()
 loader.save_reports()
-
-# loader.gen_solucion_fase_01()
-# loader.save()
-
-
-    
-    
-
-
-loader.save_reports()
-
-
-
-problema = loader.problema
 
 
 '''

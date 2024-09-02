@@ -517,7 +517,7 @@ class Loader():
         
         importaciones = self.problema['importaciones']
         
-        periodos = len(self.fechas)
+        periodos = len(self.problema['fechas'])
         
         for ingrediente in importaciones.keys():
             
@@ -536,7 +536,7 @@ class Loader():
                             
                             for t in range(periodos):
                                 
-                                llegadas = importaciones[ingrediente][puerto][operador][empresa][importacion]['llegadas'][t]
+                                llegadas = int(importaciones[ingrediente][puerto][operador][empresa][importacion]['llegadas'][t])
                         
                                 despachos = 0
                                 
@@ -551,9 +551,10 @@ class Loader():
                                         despachos += lista['target'][t]  
                                         
                                 despachos = despachos*self.cap_camion
-                                
-                                inventario = inventario + llegadas - despachos
-                                
+                                try:
+                                    inventario = inventario + llegadas - despachos
+                                except:
+                                    print('aqui fue!')
                                 importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t] = int(inventario)
                       
     def get_total_arrivals(self, planta:str, ingrediente:str, periodo:int)->int:
@@ -597,7 +598,7 @@ class Loader():
             return int(dio)
         
         plantas = self.problema['plantas']
-        periodos = len(self.fechas)
+        periodos = len(self.problema['fechas'])
         
         for planta in plantas.keys():
             
@@ -834,7 +835,10 @@ class Loader():
                         peor_planta_dio = planta
                         peor_ingrediente_dio = ingrediente
                         peor_dio = plantas_dio[planta][ingrediente]['dio']
-                        peor_faltante = plantas_dio[planta][ingrediente]['faltante_ss_dio']
+                        try:
+                            peor_faltante = plantas_dio[planta][ingrediente]['faltante_ss_dio']
+                        except:
+                            print('Aqui es')
                                 
                     # Si estamos ante un peor DIO
                     if peor_dio > plantas_dio[planta][ingrediente]['dio']:
@@ -855,9 +859,7 @@ class Loader():
                         
         return peor_planta_dio, peor_ingrediente_dio, peor_dio, peor_faltante
     
-    
-    
-                
+             
     def get_despacho_planta_minimo_costo(self,ingrediente:str, planta:str, t:int)->dict:
         
         min_costo= None
@@ -890,9 +892,6 @@ class Loader():
         return min_puerto, min_operador, min_empresa, min_impo 
                         
         
-        
-    
-
     def gen_solucion_fase_01(self):
         
         # FASE 1
@@ -931,7 +930,7 @@ class Loader():
                 
            
                 
-            while dio <= 3 and len(ingredientes_disponibles.keys())>0:
+            while dio <= 1 and len(ingredientes_disponibles.keys())>0:
                 
                 # Obtenga la importacion cuyo despacho sea el más bajo posible
                 puerto, operador, empresa, importacion = self.get_despacho_planta_minimo_costo(ingrediente=peor_ingrediente_dio, planta=peor_planta_dio, t=t)
@@ -970,26 +969,35 @@ class Loader():
             # Obtenga el siguiente despacho urgente
             peor_planta_dio, peor_ingrediente_dio, dio, peor_faltante  = self.despacho_para_ss(plantas_dio=plantas_dio, ingredientes=list(ingredientes_disponibles.keys()))
             
-            while dio <= self.problema['plantas'][peor_planta_dio]['ingredientes'][peor_ingrediente_dio]['safety_stock_dio']  and len(ingredientes_disponibles.keys())>0:
+            if peor_planta_dio and peor_ingrediente_dio:
                 
-                # Obtenga la importacion cuyo despacho sea el más bajo posible
-                puerto, operador, empresa, importacion = self.get_despacho_planta_minimo_costo(ingrediente=peor_ingrediente_dio, planta=peor_planta_dio, t=t)
+                iterar = dio <= self.problema['plantas'][peor_planta_dio]['ingredientes'][peor_ingrediente_dio]['safety_stock_dio'][t] and len(ingredientes_disponibles.keys())>0
                 
-                # print(f"despachando {peor_ingrediente_dio} a {peor_planta_dio} con {dio}")
-                self.problema['importaciones'][peor_ingrediente_dio][puerto][operador][empresa][importacion]['despachos'][peor_planta_dio]['safety_stock'][t] += 1
-                self.problema['plantas'][peor_planta_dio]['ingredientes'][peor_ingrediente_dio]['llegadas'][f"{peor_ingrediente_dio}_{puerto}_{operador}_{empresa}_{importacion}"][t+2] +=1
-                   
-                self.calcular_parametros()
+                while iterar:
                     
-                # Obtenga una lista de ingredientes disponibles en T
-                ingredientes_disponibles = self.get_ingredientes_disponibles(t)
-                
-                # identifique dentro de la lista de ingredientes, cuál planta tiene el valor más bajo en DIO. Romper empate por el consumo pendiente más alto
-                plantas_dio = self.get_dio_plantas(periodo=t+2)
-                
-                # Obtenga el siguiente despacho urgente
-                peor_planta_dio, peor_ingrediente_dio, dio, peor_faltante  = self.despacho_para_ss(plantas_dio=plantas_dio, ingredientes=list(ingredientes_disponibles.keys()))
-        
+                    # Obtenga la importacion cuyo despacho sea el más bajo posible
+                    puerto, operador, empresa, importacion = self.get_despacho_planta_minimo_costo(ingrediente=peor_ingrediente_dio, planta=peor_planta_dio, t=t)
+                    
+                    # print(f"despachando {peor_ingrediente_dio} a {peor_planta_dio} con {dio}")
+                    self.problema['importaciones'][peor_ingrediente_dio][puerto][operador][empresa][importacion]['despachos'][peor_planta_dio]['safety_stock'][t] += 1
+                    self.problema['plantas'][peor_planta_dio]['ingredientes'][peor_ingrediente_dio]['llegadas'][f"{peor_ingrediente_dio}_{puerto}_{operador}_{empresa}_{importacion}"][t+2] +=1
+                       
+                    self.calcular_parametros()
+                        
+                    # Obtenga una lista de ingredientes disponibles en T
+                    ingredientes_disponibles = self.get_ingredientes_disponibles(t)
+                    
+                    # identifique dentro de la lista de ingredientes, cuál planta tiene el valor más bajo en DIO. Romper empate por el consumo pendiente más alto
+                    plantas_dio = self.get_safety_stock_plantas(periodo=t+2)
+                    
+                    # Obtenga el siguiente despacho urgente
+                    peor_planta_dio, peor_ingrediente_dio, dio, peor_faltante  = self.despacho_para_ss(plantas_dio=plantas_dio, ingredientes=list(ingredientes_disponibles.keys()))
+                    
+                    if peor_planta_dio and peor_ingrediente_dio:                        
+                        iterar = dio <= self.problema['plantas'][peor_planta_dio]['ingredientes'][peor_ingrediente_dio]['safety_stock_dio'][t] and len(ingredientes_disponibles.keys())>0                    
+                    else:                        
+                        iterar = False
+
         
         
         

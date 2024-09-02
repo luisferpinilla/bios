@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Aug 26 06:57:03 2024
+Created on Fri Aug 30 17:27:46 2024
 
 @author: luisf
 """
+
 import pulp as pu
 import os
+from reducir_importaciones import reducir_importaciones
 
-class MinCostoTotal():
+class EvitarBackorder():
     
     def __init__(self, problema:dict):
         
-        self.problema = problema
+        self.problema = reducir_importaciones(problema)
         self.despacho_var = dict() # [impo][planta][t]
         self.recibos_var = dict() # [planta][ingrediente][t]
         self.llegadas_puerto_par = dict() # [impo][t]
@@ -35,59 +37,34 @@ class MinCostoTotal():
     def gen_variables_despacho(self):
     
         # Generar variables de despacho (y recepción)
-        for ingrediente in self.problema['importaciones'].keys():
-            for puerto in self.problema['importaciones'][ingrediente].keys():
-                for operador in self.problema['importaciones'][ingrediente][puerto].keys():
-                    for empresa in self.problema['importaciones'][ingrediente][puerto][operador].keys():
-                        for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
-                            max_despacho = int(self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][-1]/self.problema['capacidad_camion'])
-                            for planta in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
-                                for t in range(len(self.problema['fechas'])-2):
-                                    var_name = f"desp_{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}_{planta}_{t}"
-                                    if self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][t] > self.problema['capacidad_camion']:
-                                        if 'maximo' in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta].keys():
-                                            maximo = self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['maximo']
-                                            var = pu.LpVariable(name=var_name, lowBound=0, upBound=min(maximo,max_despacho), cat=pu.LpInteger)
-                                            var.setInitialValue(0)
-                                            name = f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"
-
-                                            if name not in self.despacho_var.keys():
-                                                self.despacho_var[name] =  dict()
-
-                                            if planta not in self.despacho_var[name].keys():
-                                                self.despacho_var[name][planta] = dict()
-
-                                            self.despacho_var[name][planta][t]=var
-
-                                            if planta not in self.recibos_var.keys():
-                                                self.recibos_var[planta] = dict()
-
-                                            if ingrediente not in self.recibos_var[planta].keys():
-                                                self.recibos_var[planta][ingrediente] = dict()
-                                                self.recibos_var[planta][ingrediente][0] = list()
-                                                self.recibos_var[planta][ingrediente][1] = list()
-
-                                            t_llegada = t+2
-
-                                            if t_llegada not in self.recibos_var[planta][ingrediente].keys():
-                                                self.recibos_var[planta][ingrediente][t_llegada] = list()
-
-                                            self.recibos_var[planta][ingrediente][t_llegada].append(var)
+        for ingrediente in self.problema['importaciones']['importacion'].keys():
+            for planta in self.problema['importaciones'][ingrediente]['puerto']['operador']['empresa']['importacion']['despachos'].keys():
+                for t in range(len(self.problema['fechas'])-2):
+                    var_name = f"desp_{ingrediente}_{planta}_{t}"   
+                    var = pu.LpVariable(name=var_name, lowBound=0, cat=pu.LpInteger)
+                    if ingrediente not in self.despacho_var.keys():
+                        self.despacho_var[ingrediente] =  dict()
+                    if planta not in self.despacho_var[ingrediente].keys():
+                        self.despacho_var[ingrediente][planta] = dict()
+                    self.despacho_var[ingrediente][planta][t]=var
+                    if planta not in self.recibos_var.keys():
+                        self.recibos_var[planta] = dict()
+                    if t ==0:
+                        self.recibos_var[planta][ingrediente] = list()
+                        self.recibos_var[planta][ingrediente].append(0)
+                        self.recibos_var[planta][ingrediente].append(0)
+                    self.recibos_var[planta][ingrediente].append(var)
                                         
     def gen_variables_inventario_importacion(self):
         # Generar variables de inventario en puerto
-        for ingrediente in self.problema['importaciones'].keys():
-            for puerto in self.problema['importaciones'][ingrediente].keys():
-                for operador in self.problema['importaciones'][ingrediente][puerto].keys():
-                    for empresa in self.problema['importaciones'][ingrediente][puerto][operador].keys():
-                        for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
-                            self.inv_puerto_var[f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"] = list()
-                            for t in range(len(self.problema['fechas'])):
-                                var_name = f"inv_{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}_{t}"
-                                maximo = self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][t]
-                                var = pu.LpVariable(name=var_name, lowBound=0, upBound=maximo, cat=pu.LpContinuous)
-                                var.setInitialValue(maximo)
-                                self.inv_puerto_var[f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"].append(var)
+        for ingrediente in self.problema['importaciones'].keys():         
+                self.inv_puerto_var[f"{ingrediente}"] = list()
+                for t in range(len(self.problema['fechas'])):
+                    var_name = f"inv_{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}_{t}"
+                    maximo = self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['inventario'][t]
+                    var = pu.LpVariable(name=var_name, lowBound=0, upBound=maximo, cat=pu.LpContinuous)
+                    var.setInitialValue(maximo)
+                    self.inv_puerto_var[f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"].append(var)
 
     def gen_variables_inventario_planta(self):
         

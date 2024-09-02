@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 import os
-
+import json
 import logging
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
@@ -14,12 +14,32 @@ os.chdir(working_dir)
 print(f"cargando el archivo \"{input_file}\"")
 
 
+
+
+
+
 from client.loader import Loader
 loader = Loader(input_file)
+loader.load_data()
+# problema = loader.problema
 
-loader.gen_solucion_inicial()
+# loader.problema = problema
+
+loader.gen_solucion_fase_01()
+# loader.gen_solucion_fase_02()
+loader.save_reports()
+
+# loader.gen_solucion_fase_01()
+# loader.save()
+
+
+    
+    
+
 
 loader.save_reports()
+
+
 
 problema = loader.problema
 
@@ -39,14 +59,14 @@ model_02.solve()
 model_02.gen_reports()
 
 problema = model_02.problema
-import json
-with open(input_file.replace('.xlsm', '.json'), 'w') as file:
-    json.dump(problema, file, indent=4, sort_keys=True, default=str)
+
+
 
 
 # Leer resultado
 with open(input_file.replace('.xlsm', '.json'), 'r') as file:
     problema = json.load(file)
+    
 
 for planta in problema['plantas'].keys():
     for ingrediente in problema['plantas'][planta]['ingredientes'].keys():

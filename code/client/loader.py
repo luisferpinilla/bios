@@ -5,7 +5,9 @@ from client.asignador_capacidad import AsignadorCapacidad
 import logging
 import json
 from itertools import accumulate
-from datetime import datetime, date
+from datetime import datetime
+from tqdm import tqdm
+
 
 class Loader():
     def __init__(self, input_file:str, cap_descarge=5000000, cap_camion=34000) -> None:
@@ -41,11 +43,7 @@ class Loader():
         
         self.generar_variables_despacho()
         
-        self.calcular_inventarios_importaciones()
-        
-        self.calcular_inventarios_planta()
-        
-        self.calcular_costo_backorder()
+        self.calcular_parametros()
         
     def _load_consumos(self):
         
@@ -433,8 +431,7 @@ class Loader():
                                 self.problema['plantas'][planta]['ingredientes'][ingrediente]['safety_stock'] = ss_kg*np.ones(len(self.problema['fechas']))
                             else:
                                 logging.warning("La capacidad de almacenamiento de la planta %s para el ingrediente %s no es suficiente para mantener un SS de %s días equivalente a %s kilos y recibir al menos 2 camiones", planta, ingrediente, ss_dias, ss_kg)
-        
-    
+   
     def limpiar_importaciones(self):
         # Borra todas las importaciones cuyas llegadas más inventarios no tengan al menos un camion despachable
         for ingrediente, ingrediente_values in tqdm(self.problema['importaciones'].items()):
@@ -511,10 +508,6 @@ class Loader():
                                     
                                     llegadas[f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"] = [int(x) for x in list(np.zeros(len(self.fechas)))]
                                     
-                                    
-
-                                    
-
     def calcular_inventarios_importaciones(self):
         
         importaciones = self.problema['importaciones']
@@ -533,7 +526,8 @@ class Loader():
                             
                             inventario = importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario_inicial']
                             
-                            importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'] = list()
+                            if 'inventario' not in importaciones[ingrediente][puerto][operador][empresa][importacion].keys():
+                                importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'] = [0] * len(self.problema['fechas'])
                             
                             for t in range(periodos):
                                 
@@ -555,16 +549,56 @@ class Loader():
                                 
                                 inventario = inventario + llegadas - despachos
                                 
-                                importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'].append(int(inventario))
+                                importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t] = int(inventario)
                       
+    def get_total_arrivals(self, planta:str, ingrediente:str, periodo:int)->int:
+        
+        total_llegadas = 0
+        
+        for importacion in self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegadas'].keys():
+            
+            total_llegadas += self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegadas'][importacion][periodo]
+            total_llegadas += self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegada_planeada'][importacion][periodo]
+        
+        return total_llegadas
 
     def calcular_inventarios_planta(self):
         
+        def get_dio(inventario_actual:int, consumo:list, mode='count')->int:
+    
+
+            dio = 0
+            if mode == 'count':
+            
+                horizonte = len(consumo)
+                
+                if horizonte>0:
+                    while inventario_actual > consumo[dio] and dio < horizonte-1:
+                        
+                        inventario_actual -= consumo[dio]
+                        dio += 1
+                        
+                    while inventario_actual > 0:
+                        inventario_actual -= consumo[-1]
+                        dio += 1
+                        
+            else:
+                    
+                promedio = np.mean(consumo)
+                    
+                if promedio > 0:
+                    dio = inventario_actual / promedio
+            
+            return int(dio)
+        
         plantas = self.problema['plantas']
         periodos = len(self.fechas)
-        importaciones = self.problema['importaciones']
         
         for planta in plantas.keys():
+            
+            if 'tiempo_consumido' not in plantas[planta].keys():
+                plantas[planta]['tiempo_consumido'] = [0]*len(self.problema['fechas'])
+                
             for ingrediente in plantas[planta]['ingredientes'].keys():
                     
                 if 'capacidad' not in plantas[planta]['ingredientes'][ingrediente].keys() :
@@ -577,62 +611,43 @@ class Loader():
                     
                     inventario = plantas[planta]['ingredientes'][ingrediente]['inventario_inicial']
                     
-                    plantas[planta]['ingredientes'][ingrediente]['inventario'] = list()
-                    
-                    plantas[planta]['ingredientes'][ingrediente]['inventario'] = list()
-                    plantas[planta]['ingredientes'][ingrediente]['backorder'] = list()
-                
-                    
-                    
+                    if 'inventario' not in plantas[planta]['ingredientes'][ingrediente].keys():                    
+                        plantas[planta]['ingredientes'][ingrediente]['inventario'] = [0]*len(self.problema['fechas'])
+                        plantas[planta]['ingredientes'][ingrediente]['dio'] = [0]*len(self.problema['fechas'])
+                        plantas[planta]['ingredientes'][ingrediente]['inventario'] =[0]*len(self.problema['fechas'])
+                        plantas[planta]['ingredientes'][ingrediente]['backorder'] = [0]*len(self.problema['fechas'])
+
                     for t in range(periodos):
-                        
-                        despachos = 0
                         
                         consumo = plantas[planta]['ingredientes'][ingrediente]['consumo'][t]
                         llegada_planeada = plantas[planta]['ingredientes'][ingrediente]['llegada_planeada'][t]
                         
-                        if t >= 2 and t <= periodos-2:
+                        llegadas = 0
                         
-                            despachos = 0
-                            
-                            if ingrediente in importaciones.keys():
-                            
-                                for puerto in importaciones[ingrediente].keys():
-                                    
-                                    for operador in importaciones[ingrediente][puerto].keys():
-                                    
-                                        for empresa in importaciones[ingrediente][puerto][operador].keys():
-                                    
-                                            for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
-                                                
-                                                if planta in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
-                                                
-                                                    lista = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]
-                                                    
-                                                    if 'minimo' in lista.keys():
-                                                        despachos += lista['minimo'][t-2]
-                                                    
-                                                    if 'safety_stock' in lista.keys():
-                                                        despachos += lista['safety_stock'][t-2]
-                                                        
-                                                    if 'target' in lista.keys():
-                                                        despachos += lista['target'][t-2]
-                                  
-                        despachos = despachos*self.cap_camion
+                        if 'llegadas' in plantas[planta]['ingredientes'][ingrediente].keys():
+                            for impo in plantas[planta]['ingredientes'][ingrediente]['llegadas'].keys():
+                                
+                                llegadas += plantas[planta]['ingredientes'][ingrediente]['llegadas'][impo][t]
+                                
+                        plantas[planta]['tiempo_consumido'][t] += llegadas*plantas[planta]['ingredientes'][ingrediente]['tiempo_proceso']
+                                
+                        llegadas = llegadas*self.cap_camion
                         
-                        if inventario - consumo + despachos + llegada_planeada >= 0:
-                                                    
-                            inventario = inventario - consumo + despachos + llegada_planeada
-                            backorder = 0
+                        inventario = inventario + llegadas + llegada_planeada - consumo
                             
-                        else:
+                        if inventario < 0:
                             
-                            backorder = consumo - inventario - despachos - llegada_planeada 
+                            backorder = -1*inventario                            
                             inventario = 0
-                        
-                        plantas[planta]['ingredientes'][ingrediente]['inventario'].append(inventario)
-                        plantas[planta]['ingredientes'][ingrediente]['backorder'].append(backorder)
-           
+                                
+                        else:
+                            backorder = 0 
+                            
+                        plantas[planta]['ingredientes'][ingrediente]['dio'][t] = get_dio(inventario_actual=inventario, consumo=plantas[planta]['ingredientes'][ingrediente]['consumo'][t:], mode='avg')
+                        plantas[planta]['ingredientes'][ingrediente]['inventario'][t]= inventario
+                        plantas[planta]['ingredientes'][ingrediente]['backorder'][t] = backorder                        
+                       
+            
     def calcular_costo_backorder(self):
         
         costo_backorder = dict()
@@ -647,10 +662,360 @@ class Loader():
                                     costo_backorder[ingrediente].append(max(self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta]))
                                 
         self.problema['costo_backorder'] = {ingrediente:100*max(costos)/self.problema['capacidad_camion'] for ingrediente,costos in costo_backorder.items()}   
+
+    def calcular_parametros(self):
+        
+        self.calcular_inventarios_importaciones()
+        
+        self.calcular_inventarios_planta()
+        
+        self.calcular_costo_backorder()
+
+
+
+    def get_ingredientes_disponibles(self, t:int)->dict:
+        
+        # Retorna un diccionario de ingredientes disponibles en un periodo de tiempo dado
+        
+        ingredientes_disponibles = dict()
+        
+        importaciones = self.problema['importaciones']
+        
+        for ingrediente in importaciones.keys():
+            camiones_disponibles = 0
+            for puerto in importaciones[ingrediente].keys():
+                for operador in importaciones[ingrediente][puerto].keys():
+                    for empresa in importaciones[ingrediente][puerto][operador].keys():
+                        for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
+                            camiones_disponibles += int(importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t]/self.problema['capacidad_camion'])
+                            
+                            if camiones_disponibles > 0:
+                                if ingrediente not in ingredientes_disponibles.keys():
+                                    ingredientes_disponibles[ingrediente] = dict()
+                                    
+                                impo = f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"
+                                ingredientes_disponibles[ingrediente][impo] = dict()
+                                ingredientes_disponibles[ingrediente][impo]["camiones_disponibles"] = camiones_disponibles
+                                ingredientes_disponibles[ingrediente][impo]["costo_despacho"] = dict()
+                                
+                                for planta in importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'].keys():
+                                    
+                                    ingredientes_disponibles[ingrediente][impo]["costo_despacho"][planta] = importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta][t]
+                                   
+        return ingredientes_disponibles
+
+    
+    def get_dio_plantas(self, periodo:int)->dict:
+        
+        plantas_dio = dict()
+        
+        plantas = self.problema['plantas']
+        
+        for planta in plantas.keys():
+            for ingrediente in plantas[planta]['ingredientes'].keys():
+                
+                t_disponible = plantas[planta]['tiempo_disponible']
+                t_consumido = plantas[planta]['tiempo_consumido'][periodo]
+                
+                max_camiones_recepcion = int((t_disponible-t_consumido)/plantas[planta]['ingredientes'][ingrediente]['tiempo_proceso'])
+                max_camiones_inventario = int((plantas[planta]['ingredientes'][ingrediente]['capacidad'] - plantas[planta]['ingredientes'][ingrediente]['inventario'][periodo])/self.problema['capacidad_camion'])
+
+                if min(max_camiones_recepcion, max_camiones_inventario) > 0:                
+                
+                    if planta not in plantas_dio.keys():
+                        plantas_dio[planta] = dict()
+                        
+                    if ingrediente not in plantas_dio[planta].keys():
+                        plantas_dio[planta][ingrediente] = dict()
+                    
+                    plantas_dio[planta][ingrediente]['dio'] = plantas[planta]['ingredientes'][ingrediente]['dio'][periodo]
+                    plantas_dio[planta][ingrediente]['consumo_pendiente'] = sum(plantas[planta]['ingredientes'][ingrediente]['consumo'][periodo:])
+                
+        return plantas_dio
+        
+
+    def despacho_urgente(self, plantas_dio: dict(), ingredientes:list):
+        # retorna la planta con la urgencia más alta
+        
+        # Inicializar valores
+
+        peor_planta_dio = None
+        peor_ingrediente_dio = None
+        peor_dio = 1000
+        peor_consumo = 0
+
+        # Recorrer todas las plantas
+        for planta in plantas_dio.keys():
+            # recorrer totos los ingredientes
+            for ingrediente in ingredientes: 
+                # verificar que el ingrediente este dentro de los despachable
+                if ingrediente in plantas_dio[planta].keys():
+                    
+                    # Inicializar variables si no se ha hecho
+                    if not peor_planta_dio:
+                        peor_planta_dio = planta
+                        peor_ingrediente_dio = ingrediente
+                        peor_dio = plantas_dio[planta][ingrediente]['dio']
+                        peor_consumo = plantas_dio[planta][ingrediente]['consumo_pendiente']
+                                
+                    # Si estamos ante un peor DIO
+                    if peor_dio > plantas_dio[planta][ingrediente]['dio']:
+                        # Reasignar peor dio
+                        peor_planta_dio = planta
+                        peor_ingrediente_dio = ingrediente
+                        peor_dio = plantas_dio[planta][ingrediente]['dio']
+                        peor_consumo = plantas_dio[planta][ingrediente]['consumo_pendiente']
+                        
+                    # Si los dios son iguales, comparar los consumos
+                    elif peor_dio == plantas_dio[planta][ingrediente]['dio']:
+                        if peor_consumo < plantas_dio[planta][ingrediente]['consumo_pendiente']:
+                            peor_planta_dio = planta
+                            peor_ingrediente_dio = ingrediente
+                            peor_dio = plantas_dio[planta][ingrediente]['dio']
+                            peor_consumo = plantas_dio[planta][ingrediente]['consumo_pendiente']
+
+                        
+        return peor_planta_dio, peor_ingrediente_dio, peor_dio
+                
+    def get_despacho_planta_minimo_costo(self,ingrediente:str, planta:str, t:int)->dict:
+        
+        min_costo= None
+        min_puerto = ''
+        min_operador=''
+        min_empresa=''
+        min_impo = ''
+        
+        importaciones = self.problema['importaciones']
+        
+        for puerto in importaciones[ingrediente].keys():
+            for operador in importaciones[ingrediente][puerto].keys():
+                for empresa in importaciones[ingrediente][puerto][operador].keys():
+                    for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
+                        if importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t] > self.problema['capacidad_camion']:
+                            if not min_costo:
+                                min_costo = importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta][t]
+                                min_puerto = puerto
+                                min_operador = operador
+                                min_empresa = empresa
+                                min_impo = importacion
+                            
+                            if min_costo > importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta][t]:
+                                min_costo = importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta][t]
+                                min_puerto = puerto
+                                min_operador = operador
+                                min_empresa = empresa
+                                min_impo = importacion
+                            
+        return min_puerto, min_operador, min_empresa, min_impo 
+                        
+        
+        
+    
+
+    def gen_solucion_inicial(self):
+        
+        # FASE 1
+        # Seleccionamos el primer periodo.
+        # Vamos a nivelar el inventario de cada materia prima en planta en DIO, camion por camion
+        # Empezaremos asegurando que no exista backorder en el corto plazo, para lo cual se asigna
+        # la Carga disponible más económica un lead time antes, comenzando por la planta-ingrediente con
+        # el menor DIO y con capacidad de recibir un camion.
+        # recalcular los indicadores (inventario final, DIO, etc) y continuar con el siguente DIO más bajo
+        # El proceso se detiene cuando se acaba cuando no hay backorder y se sigue al siguiente periodo
+        # si se agota el inventario en puerto se detiene el proceso para este ingrediente.
+        
+        # FASE 2
+        # COntinue enviando camión a camion hasta llegar al SS
+        
+        # Fase 3 
+        # Construya clusters con los valores únicos de despacho de camiones desde las importaciones
+        # hasta las plantas. Elimine Los despachos que sean considerados más costosos
+        # incremente periodo a periodo y camion a camiónel inventatrio en días sin sobrepasar la
+        # Capacidad de almacenamiento o recepción
+        
+        
+        # Fase 1
+        
+        # Para cada periodo
+        for t in tqdm(range(1, len(self.problema['fechas'])-2)):
+       
+            # Obtenga una lista de ingredientes disponibles en T
+            ingredientes_disponibles = self.get_ingredientes_disponibles(t)
+            
+            # identifique dentro de la lista de ingredientes, cuál planta tiene el valor más bajo en DIO. Romper empate por el consumo pendiente más alto
+            plantas_dio = self.get_dio_plantas(periodo=t+2)
+            
+ 
+            # Obtenga el siguiente despacho urgente
+            peor_planta_dio, peor_ingrediente_dio, dio = self.despacho_urgente(plantas_dio=plantas_dio, ingredientes=list(ingredientes_disponibles.keys()))
+                
+           
+                
+            while dio <= 1 and len(ingredientes_disponibles.keys())>0:
+                
+                # Obtenga la importacion cuyo despacho sea el más bajo posible
+                puerto, operador, empresa, importacion = self.get_despacho_planta_minimo_costo(ingrediente=peor_ingrediente_dio, planta=peor_planta_dio, t=t)
+                
+                print(f"despachando {peor_ingrediente_dio} a {peor_planta_dio} con {dio}")
+                self.problema['importaciones'][peor_ingrediente_dio][puerto][operador][empresa][importacion]['despachos'][peor_planta_dio]['minimo'][t] += 1
+                self.problema['plantas'][peor_planta_dio]['ingredientes'][peor_ingrediente_dio]['llegadas'][f"{peor_ingrediente_dio}_{puerto}_{operador}_{empresa}_{importacion}"][t+2] +=1
+                   
+                self.calcular_parametros()
+                    
+                # Obtenga una lista de ingredientes disponibles en T
+                ingredientes_disponibles = self.get_ingredientes_disponibles(t)
+                
+                # identifique dentro de la lista de ingredientes, cuál planta tiene el valor más bajo en DIO. Romper empate por el consumo pendiente más alto
+                plantas_dio = self.get_dio_plantas(periodo=t+2)
+                
+                # Obtenga el siguiente despacho urgente
+                peor_planta_dio, peor_ingrediente_dio, dio = self.despacho_urgente(plantas_dio=plantas_dio, ingredientes=list(ingredientes_disponibles.keys()))
+                
+        
+        
+        
+        
+        
+        
+
     
     def save(self):
         with open(self.file.replace('.xlsm', '.json'), 'w') as file:
             json.dump(self.problema, file, indent=4, sort_keys=True, default=str)
+            
+    
+    def save_reports(self):
+        
+        # Guardar reporte puertos
+        
+        puertos_df = list()
+        
+        importaciones = self.problema['importaciones']
+        
+        periodos = len(self.problema['fechas'])
+        
+        print("Guardando reporte de puertos")
+        
+        for ingrediente in tqdm(importaciones.keys()):
+            
+            for puerto in importaciones[ingrediente].keys():
+                
+                for operador in importaciones[ingrediente][puerto].keys():
+                
+                    for empresa in importaciones[ingrediente][puerto][operador].keys():
+                
+                        for importacion in importaciones[ingrediente][puerto][operador][empresa].keys(): 
+                            
+                            for t in range(periodos):
+                            
+                                data = {
+                                    "Empresa":empresa,
+                                    "Puerto":puerto,
+                                    "Operador":operador,
+                                    "ingrediente":ingrediente,
+                                    "Importacion":importacion,
+                                    "Fecha":self.problema['fechas'][t],
+                                    "Inventario":importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t],
+                                    "llegadas":importaciones[ingrediente][puerto][operador][empresa][importacion]['llegadas'][t],
+                                    "Costo_Almacenamiento": importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_almacenamiento'][t],
+                                    "Costo_Total_Almacenamiento": importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_almacenamiento'][t]*importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t]   
+                                }
+                                
+                                puertos_df.append(data)
+                                
+        puertos_df = pd.DataFrame(puertos_df)
+        
+        puertos_df.to_csv(r"C:\Users\luisf\Documents\reporte_puerto.csv")
+        
+        # Guardando reporte de despachos
+        despachos_df = list()
+        
+        importaciones = self.problema['importaciones']
+        
+        periodos = len(self.problema['fechas'])
+        
+        print("Guardando reporte de despachos")
+        
+        for ingrediente in tqdm(importaciones.keys()):
+            
+            for puerto in importaciones[ingrediente].keys():
+                
+                for operador in importaciones[ingrediente][puerto].keys():
+                
+                    for empresa in importaciones[ingrediente][puerto][operador].keys():
+                
+                        for importacion in importaciones[ingrediente][puerto][operador][empresa].keys(): 
+                            
+                            for planta in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
+                            
+                                for t in range(periodos):
+                                    
+                                    if 'minimo' in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta].keys():
+                                        minimo = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['minimo'][t]
+                                        safety_stock = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['safety_stock'][t]
+                                        target = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['target'][t]
+                                        camiones_despachados = minimo + safety_stock + target
+                                    else:
+                                        camiones_despachados = 0
+                                    flete_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['flete_camion'][planta]
+                                    data = {
+                                        "Empresa":empresa,
+                                        "Puerto":puerto,
+                                        "Operador":operador,
+                                        "ingrediente":ingrediente,
+                                        "Importacion":importacion,
+                                        "Fecha":self.problema['fechas'][t],
+                                        "Planta":planta,
+                                        "Camiones_despachados": camiones_despachados,
+                                        "Costo_Transporte_camion": flete_camion,
+                                        "Costo_Transprote": camiones_despachados * flete_camion,
+                                        }
+                                    
+                                    despachos_df.append(data)
+                                
+        despachos_df = pd.DataFrame(despachos_df)
+        
+        despachos_df.to_csv(r"C:\Users\luisf\Documents\reporte_despachos.csv")
+        
+        
+        # Guardando reporte de despachos
+        plantas_df = list()
+        
+        plantas = self.problema['plantas']
+        
+        periodos = len(self.problema['fechas'])
+        
+        print("Guardando reporte de plantas") 
+        
+        for planta in plantas.keys():
+            for ingrediente in plantas[planta]['ingredientes']:
+                
+                for t in range(periodos):
+                            
+                            inventario = plantas[planta]['ingredientes'][ingrediente]['inventario'][t]
+                            capacidad = plantas[planta]['ingredientes'][ingrediente]['capacidad']
+                            consumo = plantas[planta]['ingredientes'][ingrediente]['consumo'][t]
+                            backorder = plantas[planta]['ingredientes'][ingrediente]['backorder'][t]
+                            objetivo = capacidad
+                            data = {
+                                "variable":"inventario en planta",
+                                "planta": planta,
+                                "ingrediente": ingrediente,
+                                "periodo": self.problema['fechas'][t],
+                                "inventario": inventario,
+                                "capacidad": capacidad,
+                                "consumo": consumo,
+                                "backorder": backorder,
+                                "objetivo": objetivo
+                                }
+                            
+                            plantas_df.append(data)
+                        
+        plantas_df = pd.DataFrame(plantas_df)
+        
+        plantas_df.to_csv(r"C:\Users\luisf\Documents\reporte_plantas.csv")
+        
+        
             
         
         

@@ -1,12 +1,9 @@
-import json
 from dotenv import load_dotenv
 import os
 
 import logging
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)s: %(message)s', 
-                    datefmt='%m/%d/%Y %I:%M:%S %p')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 load_dotenv()
 
@@ -20,24 +17,32 @@ print(f"cargando el archivo \"{input_file}\"")
 from client.loader import Loader
 loader = Loader(input_file)
 
+loader.gen_solucion_inicial()
+
+loader.save_reports()
 
 problema = loader.problema
+
+
+'''
+from solver.math_models.reducir_importaciones import reducir_importaciones
+problema = reducir_importaciones(problema)
 
 # os.chdir('C:\\Users\\luisf\\Documents\\source\\bios\\code')
 
 from solver.math_models.minimizar_costo_total import MinCostoTotal
-model_02 = MinCostoTotal(loader.problema)
+model_02 = MinCostoTotal(problema)
 model_02.model.writeLP('model.lp')
+model_02.model.writeMPS('model.mps')
 model_02.solve()
 
 model_02.gen_reports()
 
 problema = model_02.problema
-
+import json
 with open(input_file.replace('.xlsm', '.json'), 'w') as file:
     json.dump(problema, file, indent=4, sort_keys=True, default=str)
 
-'''
 
 # Leer resultado
 with open(input_file.replace('.xlsm', '.json'), 'r') as file:

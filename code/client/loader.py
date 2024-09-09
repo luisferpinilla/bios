@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from code.client.asignador_capacidad import AsignadorCapacidad
+from client.asignador_capacidad import AsignadorCapacidad
 import logging
 import json
 from itertools import accumulate

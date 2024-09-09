@@ -998,7 +998,13 @@ class Loader():
                     else:                        
                         iterar = False
 
-        
+
+    def gen_solucion_fase_03(self):
+        # Calcular clusters de costos de transporte para llegar a una planta desde cualquier importacion
+        # ingnorar todos los costos etiquetados como altos
+        # Hacer un match entre 
+        pass
+
         
         
 

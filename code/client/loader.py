@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from client.asignador_capacidad import AsignadorCapacidad
+from code.client.asignador_capacidad import AsignadorCapacidad
 import logging
 import json
 from itertools import accumulate
 from datetime import datetime
 from tqdm import tqdm
-from client.clusters import asignar_etiquetas
+from code.client.clusters import asignar_etiquetas
 
 
 class Loader():

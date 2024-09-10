@@ -31,17 +31,19 @@ if 'resultado' not in st.session_state:
             loader = Loader(input_file=uploaded_file)
             loader.load_data()
 
-        with st.spinner(text='Espere un momento por favor, se esta ejecutando el modelo'):    
+        with st.spinner(text='Espere un momento por favor, se esta ejecutando fase 1'):    
             loader.gen_solucion_fase_01()
+        with st.spinner(text='Espere un momento por favor, se esta ejecutando fase 2'):
             loader.gen_solucion_fase_02()
+        with st.spinner(text='Espere un momento por favor, se esta ejecutando fase 3'):
             loader.get_solucion_fase_03()
 
-            plantas_df, puertos_df, despachos_df = loader.save_reports()
-            reportes_dict = {
-                "puerto":puertos_df,
-                "despacho":despachos_df,
-                "planta":plantas_df
-            }
+        plantas_df, puertos_df, despachos_df = loader.save_reports()
+        reportes_dict = {
+            "puerto":puertos_df,
+            "despacho":despachos_df,
+            "planta":plantas_df
+        }
             
         st.session_state['resultado'] = reportes_dict
 

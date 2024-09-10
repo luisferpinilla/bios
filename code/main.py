@@ -16,13 +16,27 @@ print(f"cargando el archivo \"{input_file}\"")
 from client.loader import Loader
 loader = Loader(input_file)
 loader.load_data()
-# problema = loader.problema
+problema = loader.problema
 
 # loader.problema = problema
 loader.gen_solucion_fase_01()
+plantas_df, puertos_df, despachos_df = loader.save_reports()
 loader.gen_solucion_fase_02()
+plantas_df, puertos_df, despachos_df = loader.save_reports()
+loader.gen_solucion_fase_03()
+plantas_df, puertos_df, despachos_df = loader.save_reports()
+
+
+from client.loader import Loader
+loader = Loader(input_file)
+loader.problema = problema
+
+
+plantas_df, puertos_df, despachos_df = loader.save_reports()
+problema = loader.problema
+
 loader.save()
-loader.save_reports()
+
 
 
 '''
@@ -39,7 +53,7 @@ model_02.solve()
 
 model_02.gen_reports()
 
-problema = model_02.problema
+
 
 
 

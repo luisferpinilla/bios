@@ -34,6 +34,7 @@ if 'resultado' not in st.session_state:
         with st.spinner(text='Espere un momento por favor, se esta ejecutando el modelo'):    
             loader.gen_solucion_fase_01()
             loader.gen_solucion_fase_02()
+            loader.get_solucion_fase_03()
 
             plantas_df, puertos_df, despachos_df = loader.save_reports()
             reportes_dict = {

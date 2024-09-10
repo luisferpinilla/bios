@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from code.client.loader import Loader
+from client.loader import Loader
 
 # # Modelo de base de datos
 

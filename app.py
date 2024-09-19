@@ -16,7 +16,7 @@ st.set_page_config(layout="wide")
 
 st.button(label='call_back')
 
-st.title('Optimizador BIOS. V2.10')
+st.title('Optimizador BIOS. V2.11')
 
 if 'resultado' not in st.session_state:
 
@@ -46,6 +46,8 @@ if 'resultado' not in st.session_state:
         }
             
         st.session_state['resultado'] = reportes_dict
+
+        st.write('Ha terminado la fase 4. Por favor haga click en "call_back"')
 
 else:
 

@@ -1194,7 +1194,7 @@ class Loader():
     def gen_solucion_fase_03(self):
         
         # FASE 3
-        # Continue enviando camión a camion hasta llegar al SS, al finalizar, intente despachar un dia mas
+        # Continue enviando camión a camion hasta llegar al target, al finalizar, intente despachar un dia mas
         
         # Fase 3
         print("Ejecutando Fase 3: Incrementar DIO de manera nivelada hasta que ni haya cargas con bajo costo en cluster")
@@ -1232,7 +1232,7 @@ class Loader():
                         puerto, operador, empresa, importacion = self.get_despacho_planta_minimo_costo(ingrediente=peor_ingrediente_dio, planta=peor_planta_dio, t=t)
                         
                         # print(f"despachando {peor_ingrediente_dio} a {peor_planta_dio} con {dio}")
-                        self.problema['importaciones'][peor_ingrediente_dio][puerto][operador][empresa][importacion]['despachos'][peor_planta_dio]['safety_stock'][t] += 1
+                        self.problema['importaciones'][peor_ingrediente_dio][puerto][operador][empresa][importacion]['despachos'][peor_planta_dio]['target'][t] += 1
                         self.problema['plantas'][peor_planta_dio]['ingredientes'][peor_ingrediente_dio]['llegadas'][f"{peor_ingrediente_dio}_{puerto}_{operador}_{empresa}_{importacion}"][t+2] +=1                           
                         self.calcular_parametros()
                             
@@ -1343,6 +1343,11 @@ class Loader():
                                     else:
                                         camiones_despachados = 0
                                     flete_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['flete_camion'][planta]
+                                    intercompany_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['intercompany_camion'][planta]
+                                    ahorro_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['ahorro_camion'][t]
+                                    costo_despacho_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta][t]
+                                    cluster_despacho = importaciones[ingrediente][puerto][operador][empresa][importacion]['cluster_despacho'][planta][t]
+                                    costos_despacho_directo = importaciones[ingrediente][puerto][operador][empresa][importacion]['costos_despacho_directo'][t]
                                     data = {
                                         "Empresa":empresa,
                                         "Puerto":puerto,
@@ -1354,6 +1359,14 @@ class Loader():
                                         "Camiones_despachados": camiones_despachados,
                                         "Costo_Transporte_camion": flete_camion,
                                         "Costo_Transprote": camiones_despachados * flete_camion,
+                                        "Minimo Despacho": minimo,
+                                        "Despacho para Safety Stock": safety_stock,
+                                        "Depsacho hasta Target": target,
+                                        "intercompany_camion":intercompany_camion,
+                                        "ahorro_camion_almacenamiento":ahorro_camion,
+                                        "costo_despacho_camion":costo_despacho_camion,
+                                        "cluster_despacho":cluster_despacho,
+                                        "costos_despacho_directo":costos_despacho_directo
                                         }
                                     
                                     despachos_df.append(data)

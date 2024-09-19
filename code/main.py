@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 import os
-import json
+
 import logging
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
@@ -27,9 +27,6 @@ loader.gen_solucion_fase_03()
 plantas_df, puertos_df, despachos_df = loader.save_reports()
 
 
-from client.loader import Loader
-loader = Loader(input_file)
-loader.problema = problema
 
 
 plantas_df, puertos_df, despachos_df = loader.save_reports()
@@ -59,6 +56,7 @@ model_02.gen_reports()
 
 
 # Leer resultado
+import json
 with open(input_file.replace('.xlsm', '.json'), 'r') as file:
     problema = json.load(file)
     

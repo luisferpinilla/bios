@@ -9,8 +9,12 @@ from planta import Planta
 from importacion import Importacion
 
 class Problema():
-    def __init__(self, file:str):
+    def __init__(self, file:str, cap_camion=34000, cap_descarge=5000000):
         
+        self.file = file
+        self.cap_camion = cap_camion
+        self.cap_descarge=cap_descarge
+        self.fechas = dict()
         self.ingredientes = list()
         self.plantas = dict()
         self.importaciones = dict()

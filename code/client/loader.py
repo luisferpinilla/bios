@@ -218,6 +218,9 @@ class Loader():
         
         df = pd.read_excel(self.file, sheet_name='tto_puerto')
         
+        if df[df[['empresa', 'operador', 'puerto', 'ingrediente', 'importacion']].duplicated()].shape[0] > 0:
+            logging.critical("Existen transitos a puerto duplicados")
+        
         df['fecha_llegada'] = df['fecha_llegada'].apply(lambda x: x.date()) 
         
         # validar si las fechas de llegada están dentro de las fechas
@@ -292,6 +295,7 @@ class Loader():
             issue = "Existen duplicados en la hoja costos_operacion_portuaria"
             logging.critical(issue)
             raise Exception(issue)
+          
             
         df.set_index(fixed_columns, inplace=True)
             
@@ -314,7 +318,7 @@ class Loader():
                             
                             for t in self.fechas:
                                 i = ('bodega', operador, puerto, ingrediente)
-                                
+
                                 if i in df.index and last_arrival_index >= 0:
                                     if t == self.fechas[last_arrival_index]:
                                         importacion_values['costos_bodegaje'].append(float(df.loc[i]['valor_kg']))
@@ -592,7 +596,45 @@ class Loader():
                                     llegadas = self.problema['plantas'][planta]['ingredientes'][ingrediente]['llegadas']
                                     
                                     llegadas[f"{ingrediente}_{puerto}_{operador}_{empresa}_{importacion}"] = [int(x) for x in list(np.zeros(len(self.fechas)))]
-                                    
+
+
+    def calcular_inventario_importacion(self, ingrediente:str, puerto:str, operador:str, empresa:str, importacion:str):
+
+        importaciones = self.problema['importaciones']
+        
+        periodos = len(self.problema['fechas'])
+
+        inventario = importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario_inicial']
+                            
+        if 'inventario' not in importaciones[ingrediente][puerto][operador][empresa][importacion].keys():
+            importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'] = [0] * len(self.problema['fechas'])
+        
+        for t in range(periodos):
+            
+            llegadas = int(importaciones[ingrediente][puerto][operador][empresa][importacion]['llegadas'][t])
+    
+            despachos = 0
+            
+            for planta, lista in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'].items():
+                if 'minimo' in lista.keys():
+                    despachos += lista['minimo'][t]
+                
+                if 'safety_stock' in lista.keys():
+                    despachos += lista['safety_stock'][t]
+                    
+                if 'target' in lista.keys():
+                    despachos += lista['target'][t]  
+                    
+            despachos = despachos*self.cap_camion
+            try:
+                inventario = inventario + llegadas - despachos
+            except:
+                print('aqui fue!')
+            importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t] = int(inventario)
+
+
+
+
     def calcular_inventarios_importaciones(self):
         
         importaciones = self.problema['importaciones']
@@ -609,34 +651,13 @@ class Loader():
                 
                         for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
                             
-                            inventario = importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario_inicial']
-                            
-                            if 'inventario' not in importaciones[ingrediente][puerto][operador][empresa][importacion].keys():
-                                importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'] = [0] * len(self.problema['fechas'])
-                            
-                            for t in range(periodos):
-                                
-                                llegadas = int(importaciones[ingrediente][puerto][operador][empresa][importacion]['llegadas'][t])
-                        
-                                despachos = 0
-                                
-                                for planta, lista in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'].items():
-                                    if 'minimo' in lista.keys():
-                                        despachos += lista['minimo'][t]
-                                    
-                                    if 'safety_stock' in lista.keys():
-                                        despachos += lista['safety_stock'][t]
-                                        
-                                    if 'target' in lista.keys():
-                                        despachos += lista['target'][t]  
-                                        
-                                despachos = despachos*self.cap_camion
-                                try:
-                                    inventario = inventario + llegadas - despachos
-                                except:
-                                    print('aqui fue!')
-                                importaciones[ingrediente][puerto][operador][empresa][importacion]['inventario'][t] = int(inventario)
-                      
+                            self.calcular_inventarios_importacion(ingrediente=ingrediente, puerto=puerto, operador=operador, empresa=empresa, importacion=importacion)
+
+
+
+
+
+
     def get_total_arrivals(self, planta:str, ingrediente:str, periodo:int)->int:
         
         total_llegadas = 0
@@ -927,7 +948,7 @@ class Loader():
         return plantas_cap_dio
     
     
-    def despacho_urgente(self, plantas_dio: dict(), ingredientes:list):
+    def despacho_urgente(self, plantas_dio: dict, ingredientes:list):
         # retorna la planta con la urgencia más alta
         
         # Inicializar valores
@@ -970,7 +991,7 @@ class Loader():
                         
         return peor_planta_dio, peor_ingrediente_dio, peor_dio
     
-    def despacho_para_ss(self, plantas_dio: dict(), ingredientes:list):
+    def despacho_para_ss(self, plantas_dio: dict, ingredientes:list):
         # retorna la planta con la urgencia más alta
         
         # Inicializar valores
@@ -1016,7 +1037,7 @@ class Loader():
                         
         return peor_planta_dio, peor_ingrediente_dio, peor_dio, peor_faltante
     
-    def despacho_para_target(self, plantas_dio: dict(), ingredientes:list):
+    def despacho_para_target(self, plantas_dio: dict, ingredientes:list):
         # retorna la planta con la urgencia más alta
         
         # Inicializar valores

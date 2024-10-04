@@ -6,7 +6,6 @@ import logging
 import json
 from itertools import accumulate
 from datetime import datetime
-from tqdm import tqdm
 from code.client.clusters import asignar_etiquetas
 
 
@@ -1411,11 +1410,15 @@ class Loader():
                 
                 for t in range(periodos):
                             
-                            inventario = plantas[planta]['ingredientes'][ingrediente]['inventario'][t]
+                            inventario = plantas[planta]['ingredientes'][ingrediente]['inventario'][t]            
                             capacidad = plantas[planta]['ingredientes'][ingrediente]['capacidad']
                             consumo = plantas[planta]['ingredientes'][ingrediente]['consumo'][t]
                             backorder = plantas[planta]['ingredientes'][ingrediente]['backorder'][t]
                             objetivo = capacidad
+                            if 'safety_stock' in plantas[planta]['ingredientes'][ingrediente].keys():
+                                safety_stock = plantas[planta]['ingredientes'][ingrediente]['safety_stock'][t]
+                            else:
+                                safety_stock = 0
                             data = {
                                 "variable":"inventario en planta",
                                 "planta": planta,
@@ -1425,7 +1428,8 @@ class Loader():
                                 "capacidad": capacidad,
                                 "consumo": consumo,
                                 "backorder": backorder,
-                                "objetivo": objetivo
+                                "objetivo": objetivo,
+                                "safety_stock":safety_stock
                                 }
                             
                             plantas_df.append(data)

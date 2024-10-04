@@ -651,7 +651,7 @@ class Loader():
                 
                         for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
                             
-                            self.calcular_inventarios_importacion(ingrediente=ingrediente, puerto=puerto, operador=operador, empresa=empresa, importacion=importacion)
+                            self.calcular_inventario_importacion(ingrediente=ingrediente, puerto=puerto, operador=operador, empresa=empresa, importacion=importacion)
 
 
 

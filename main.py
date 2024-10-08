@@ -13,7 +13,7 @@ os.chdir(working_dir)
 
 print(f"cargando el archivo \"{input_file}\"")
 
-from client.loader import Loader 
+from code.client.loader import Loader 
 loader = Loader(input_file)
 loader.load_data()
 problema = loader.problema

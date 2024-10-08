@@ -9,11 +9,11 @@ load_dotenv()
 
 input_file = file = os.getenv("bios_input_file")
 working_dir = os.getenv("working_dir")
-# os.chdir(working_dir)
+os.chdir(working_dir)
 
 print(f"cargando el archivo \"{input_file}\"")
 
-from code.client.loader import Loader
+from client.loader import Loader 
 loader = Loader(input_file)
 loader.load_data()
 problema = loader.problema

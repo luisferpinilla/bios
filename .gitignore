@@ -184,3 +184,4 @@ db_data/
 
 # sqlite
 *.sqlite
+*.csv

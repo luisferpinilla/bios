@@ -7,12 +7,13 @@ Created on Mon Sep  9 20:00:07 2024
 from model.problema import Problema
 
 class Planta():
-    def __init__(self, problema:Problema, empresa:str, nombre:str, tiempo_total:int):
+    def __init__(self, problema:Problema, empresa:str, nombre_planta:str, tiempo_total:int, tiempo_limpieza:int):
         
         self.problema = problema
-        self.nombre = nombre
+        self.nombre = nombre_planta
         self.empresa = empresa
         self.tiempo_total = tiempo_total
+        self.tiempo_limpieza = tiempo_limpieza
         self.tiempo_proceso = dict()
         self.ingredientes = dict()    
     
@@ -35,6 +36,9 @@ class Planta():
 
         self.ingredientes[ingrediente]["llegada_planteada"][t] += value
 
+    @classmethod
+    def set_tiempo_proceso(self, ingrediente:str, valor:int):
+        self.tiempo_proceso[ingrediente] = valor
     
     @property
     def nombre(self):

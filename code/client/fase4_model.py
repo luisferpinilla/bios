@@ -1,3 +1,4 @@
+import pulp as pu
 
 class Fase4Model():
 
@@ -5,7 +6,7 @@ class Fase4Model():
         self.problema = problema
         
         self.periodos = self.problema['fechas']
-        self.plnatas = list(self.problema['plantas'].keys())
+        self.plantas = list(self.problema['plantas'].keys())
         self.ingredientes = list(self.problema['importaciones'].keys())
         
         self.Xipt = dict()
@@ -16,21 +17,27 @@ class Fase4Model():
     def _generar_modelo(self):
         
         for i in self.ingredientes:
-            
+            pass
             
             
         
 
     def _generar_variables_inventario(self):
-        pass
+        
+        for ingrediente, puerto in self.ingredientes.items():
+            for operador, empresa in puerto.items():
+                pass
 
-    def _generar_restriccion_despaacho(self):
+
+    def _generar_restriccion_despacho(self):
         pass
     def _generar_funcion_objetivo(self):
         pass
 
     def solve(self):
-        pass
+        self.model = pu.LpProblem("Bios", sense=pu.LpMinimize)
+
+        
 
 # Xipt : Cantidad de camiones que se despachan desde la importacion i hacia la planta p durante el periodo t
 # Cipt : Costo de enviar un camion desde la importacion i hacia la planta p durante el periodo t

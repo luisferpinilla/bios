@@ -39,7 +39,7 @@ class Importacion():
         self.inventario = {x:0 for x in range(len(problema.fechas))}
         self.backorder = {x:0 for x in range(len(problema.fechas))}
 
-        self._calcular()
+        self._calcular_inventario()
       
      
     def _calcular_inventario(self):

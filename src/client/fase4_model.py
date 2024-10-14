@@ -12,6 +12,9 @@ class Fase4Model():
         self.Xipt = dict()
         self.Cipt = dict()
         self.Tipt = dict()
+        self.Iit  = dict()
+        self.Ait  = dict()
+        self.Ai   = dict()
 
          
     def _generar_modelo(self):
@@ -50,6 +53,8 @@ class Fase4Model():
 # Min Sum(i,p,t){Cipt*Xipt}
 # Sujeto a:
 # Sum(i,p,t){Xipt} == TIpt
+
+model = Fase4Model(problema)
 
 
 

@@ -24,9 +24,9 @@ loader.load_data()
 
 # loader.problema = problema
 loader.gen_solucion_fase_01()
-plantas_df, puertos_df, despachos_df = loader.save_reports()
+# plantas_df, puertos_df, despachos_df = loader.save_reports()
 loader.gen_solucion_fase_02()
-plantas_df, puertos_df, despachos_df = loader.save_reports()
+# plantas_df, puertos_df, despachos_df = loader.save_reports()
 loader.gen_solucion_fase_03()
 plantas_df, puertos_df, despachos_df = loader.save_reports()
 
@@ -34,53 +34,4 @@ fin = time.time()
 print('tiempo total',fin-inicio, 'segundos')
 
 problema = loader.problema
-
-loader.save()
-
-
-
-'''
-from solver.math_models.reducir_importaciones import reducir_importaciones
-problema = reducir_importaciones(problema)
-
-# os.chdir('C:\\Users\\luisf\\Documents\\source\\bios\\code')
-
-from solver.math_models.minimizar_costo_total import MinCostoTotal
-model_02 = MinCostoTotal(problema)
-model_02.model.writeLP('model.lp')
-model_02.model.writeMPS('model.mps')
-model_02.solve()
-
-model_02.gen_reports()
-
-
-
-
-
-
-# Leer resultado
-import json
-with open(input_file.replace('.xlsm', '.json'), 'r') as file:
-    problema = json.load(file)
-    
-
-for planta in problema['plantas'].keys():
-    for ingrediente in problema['plantas'][planta]['ingredientes'].keys():
-        for t in range(len(problema['fechas'])):
-            # if problema['plantas'][planta]['ingredientes'][ingrediente]['backorder'][t]>0:
-            print(planta, ingrediente, t, 
-                      "inventario:", problema['plantas'][planta]['ingredientes'][ingrediente]['inventario'][t],  
-                      "backorder:", problema['plantas'][planta]['ingredientes'][ingrediente]['backorder'][t],
-                      "consumo:", problema['plantas'][planta]['ingredientes'][ingrediente]['consumo'][t])
-
-
-with pd.ExcelWriter(path='despachos.xlsx') as writer:
-    despachos_df.to_excel(writer, sheet_name='despachos', index=False)
-    puertos_df.to_excel(writer, sheet_name='puertos', index=False)
-    plantas_df.to_excel(writer, sheet_name='plantas', index=False)
-
-# fechas = loader.fechas
-# cap_camion = loader.cap_camion
-'''
-                    
-            
+         

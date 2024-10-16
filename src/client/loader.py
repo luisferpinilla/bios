@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from src.client.asignador_capacidad import AsignadorCapacidad
+from src.client.fase4_model import Fase4Model
 import logging
 import json
 from itertools import accumulate
@@ -1419,6 +1420,50 @@ class Loader():
             plantas_dio = self.get_target_plantas(periodo=t+2)
             peor_planta_dio, peor_ingrediente_dio, dio, peor_faltante = self.despacho_para_target(
                 plantas_dio=plantas_dio, ingredientes=list(ingredientes_disponibles.keys()))
+            
+            
+    def gen_solucion_fase_04(self):
+        
+        # Usar modelo LP fase 4
+        fase4 = Fase4Model(self.problema)
+        
+        self.df = fase4.reporte_df
+        
+        # Inicializar vectores de despachos        
+        for ingrediente in self.problema['importaciones'].keys():
+            for puerto in self.problema['importaciones'][ingrediente].keys():
+                for operador in self.problema['importaciones'][ingrediente][puerto].keys():
+                    for empresa in self.problema['importaciones'][ingrediente][puerto][operador].keys():
+                        for importacion in self.problema['importaciones'][ingrediente][puerto][operador][empresa].keys():
+                            for planta in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
+                                if 'minimo' in self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta].keys():
+                                
+                                    self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['minimo'] = np.zeros(len(self.fechas)).tolist()
+                                    self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['safety_stock'] = np.zeros(len(self.fechas)).tolist()
+                                    self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['target'] = np.zeros(len(self.fechas)).tolist()
+        
+        
+        # Volver a colocar los despachos con base en el modelo fase4
+        for i in self.df.index:
+            
+            ingrediente = self.df.loc[i]['ingrediente']
+            puerto = self.df.loc[i]['puerto']
+            operador = self.df.loc[i]['operador']
+            empresa = self.df.loc[i]['empresa']
+            importacion = self.df.loc[i]['importacion']
+            planta = self.df.loc[i]['planta']
+            periodo = self.df.loc[i]['periodo']
+            minimo = self.df.loc[i]['minimo']
+            safety = self.df.loc[i]['safety_stock']
+            target = self.df.loc[i]['target']
+
+            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['minimo'][periodo] = minimo
+            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['safety_stock'][periodo] = safety
+            self.problema['importaciones'][ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['target'][periodo] = target
+        
+        self.calcular_parametros()
+        
+        
 
     def save(self):
         with open(self.file.replace('.xlsm', '.json'), 'w') as file:

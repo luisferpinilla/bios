@@ -21,17 +21,16 @@ loader = Loader(input_file)
 loader.load_data()
 
 
-
-# loader.problema = problema
 loader.gen_solucion_fase_01()
-# plantas_df, puertos_df, despachos_df = loader.save_reports()
 loader.gen_solucion_fase_02()
-# plantas_df, puertos_df, despachos_df = loader.save_reports()
 loader.gen_solucion_fase_03()
+loader.gen_solucion_fase_04()
 plantas_df, puertos_df, despachos_df = loader.save_reports()
+
+
+
+
 
 fin = time.time()
 print('tiempo total',fin-inicio, 'segundos')
 
-problema = loader.problema
-         

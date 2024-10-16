@@ -44,7 +44,6 @@ class Fase4Model():
         Ai   = dict() # Inventario inicial de la importacion i
         
         for ingrediente in importaciones.keys():
-            TIpt[ingrediente] = dict()
             M_set.append(ingrediente)
             for puerto in importaciones[ingrediente].keys():
                 for operador in importaciones[ingrediente][puerto].keys():
@@ -80,9 +79,7 @@ class Fase4Model():
                                 
                                 if not planta in P_set:
                                     P_set.append(planta)
-                                
-                                TIpt[ingrediente][planta] = dict()
-                                
+                              
                                 if len(impo_obj['despachos'][planta]):
                                 
                                     Xipt[impo_name][planta] = dict() 
@@ -90,22 +87,39 @@ class Fase4Model():
                                     
                                     for t in range(len(fechas)):
                                         
+                                        # Llenar el valor del costo de despacho
+                                        Cipt[impo_name][planta][t] = impo_obj['costo_despacho_camion'][planta][t]
+                                        # Generar variable Xipt
+                                        despacho_var_name = f"_{impo_name}_{planta}_{t}"
+                                        despacho_var = pu.LpVariable(name=despacho_var_name, lowBound=0, cat=pu.LpInteger)
+                                        Xipt[impo_name][planta][t] = despacho_var
+
+
+        # Ir por los totales despachados a las plantas
+        for ingrediente in importaciones.keys():
+            TIpt[ingrediente] = dict()
+            for puerto in importaciones[ingrediente].keys():
+                for operador in importaciones[ingrediente][puerto].keys():
+                    for empresa in importaciones[ingrediente][puerto][operador].keys():
+                        for importacion in importaciones[ingrediente][puerto][operador][empresa].keys():
+                            for planta in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'].keys():
+                                
+                                if not planta in TIpt[ingrediente].keys():
+                                    TIpt[ingrediente][planta] = dict() 
+                                
+                                if 'minimo' in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta].keys():
+                                    
+                                    for t in range(len(fechas)):
                                         if not t in TIpt[ingrediente][planta].keys():
-                                            # Completar parametro Tipt    
-                                            TIpt[ingrediente][planta][t] = {'minimo':0, 'safety_stock':0, 'target':0}
-                                            # Llenar el valor del costo de despacho
-                                            Cipt[impo_name][planta][t] = impo_obj['costo_despacho_camion'][planta][t]
-                                            
-                                            # Llenar la cantidad de camiones despachados haacia la planta
-                                            TIpt[ingrediente][planta][t]['minimo'] += impo_obj['despachos'][planta]['minimo'][t]
-                                            TIpt[ingrediente][planta][t]['safety_stock'] += impo_obj['despachos'][planta]['safety_stock'][t]
-                                            TIpt[ingrediente][planta][t]['target'] += impo_obj['despachos'][planta]['target'][t] 
-                                            
-                                            
-                                            # Generar variable Xipt
-                                            despacho_var_name = f"_{impo_name}_{planta}_{t}"
-                                            despacho_var = pu.LpVariable(name=despacho_var_name, lowBound=0, cat=pu.LpInteger)
-                                            Xipt[impo_name][planta][t] = despacho_var
+                                                # Completar parametro Tipt    
+                                                TIpt[ingrediente][planta][t] = {'minimo':0, 'safety_stock':0, 'target':0}
+
+                                        # Llenar la cantidad de camiones despachados haacia la planta
+                                        TIpt[ingrediente][planta][t]['minimo']       += importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['minimo'][t]
+                                        TIpt[ingrediente][planta][t]['safety_stock'] += importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['safety_stock'][t]
+                                        TIpt[ingrediente][planta][t]['target']       += importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['target'][t] 
+
+        print('camiones en modelo lp', sum([sum(TIpt[i][p][t].values()) for i in TIpt.keys() for p in TIpt[i].keys() for t in TIpt[i][p].keys()])  )                    
                                             
                                             
         self.M_set = M_set
@@ -140,36 +154,49 @@ class Fase4Model():
         cap_camion = self.problema['capacidad_camion']
         
         # Funcion objetivo        
-        fobj = [self.Cipt[i][p][t]*self.Xipt[i][p][t] for i in self.I_set for p in self.P_set for t in self.T_set if p in self.Xipt[i].keys()]
+        fobj = [self.Cipt[i][p][t]*self.Xipt[i][p][t] for i in self.Xipt.keys() for p in self.Xipt[i].keys() for t in self.Xipt[i][p].keys()]
 
         # Restriccion Balance inventario
         balance_inv = list()
         
-        for i in self.I_set:
-            for t in self.T_set:
+        for i in self.Iit.keys():
+
+            inv_inicial = self.Ai[i]
+            for t in self.Iit[i].keys():
                 rest_name = f"balinv_{i}_{t}"
-                
-                if t >0:                
-                    rest = (self.Iit[i][t] ==  self.Iit[i][t-1] + self.Ait[i][t] - cap_camion*pu.lpSum([self.Xipt[i][p][t] for p in self.Xipt[i].keys()]), rest_name)
+                inv_actual = self.Iit[i][t]
+                llegada = self.Ait[i][t]
+
+                despachos = list()
+                for p in self.Xipt[i].keys():
+                    if t in self.Xipt[i][p].keys():
+                        despachos.append(self.Xipt[i][p][t])
+
+                despachos = cap_camion*pu.lpSum(despachos)
+
+                if t >0:
+                    inv_anterior =   self.Iit[i][t-1]              
+                    rest = (inv_actual ==  inv_anterior + llegada - despachos, rest_name)
                 else:
-                    rest = (self.Iit[i][t] ==  self.Ai[i] + self.Ait[i][t] - cap_camion*pu.lpSum([self.Xipt[i][p][t] for p in self.Xipt[i].keys()]), rest_name)
+                    rest = (inv_actual ==  inv_inicial + llegada - despachos, rest_name)
         
                 balance_inv.append(rest)        
         
         # Cumplir con el despacho total
         despacho_total = list()
-        for p in self.P_set:
-            for t in self.T_set[1:-2:]:
-                for m in self.M_set:
+        for m in self.TIpt.keys():
+            for p in self.TIpt[m].keys():
+                for t in self.T_set[1:-2:]:
+                
                     rest_name = f"despacho_{p}_{m}_{t}"
 
-                    sum_despachos = [self.Xipt[i][p][t] for i in self.I_set if m in i and p in self.Xipt[i].keys() and t in self.TIpt[m][p].keys()]
+                    sum_despachos = [self.Xipt[i][p][t] for i in self.Xipt.keys() if m in i and p in self.Xipt[i].keys()]
                     
-                    if len(sum_despachos) > 0 and m in self.TIpt.keys() and p in self.TIpt[m].keys() and sum(self.TIpt[m][p][t].values())>0:
-                        rest = (pu.lpSum(sum_despachos) == sum(self.TIpt[m][p][t].values()), rest_name)
-                        
-                        despacho_total.append(rest)
-                        
+                    if len(sum_despachos) > 0:
+                        if sum(self.TIpt[m][p][t].values())>0:
+                            rest = (pu.lpSum(sum_despachos) == sum(self.TIpt[m][p][t].values()), rest_name)
+                            despacho_total.append(rest)
+            
                         
         model += pu.lpSum(fobj)
 
@@ -184,7 +211,7 @@ class Fase4Model():
 
     def _generar_reporte_optimizacion(self)->pd.DataFrame:
 
-        df = list()
+        registros = list()
         for i in self.Xipt.keys():
             for p in self.Xipt[i].keys():
                 for t in self.Xipt[i][p].keys():
@@ -201,9 +228,12 @@ class Fase4Model():
                             "camiones": int(self.Xipt[i][p][t].varValue),
                             "costo_camion": self.Cipt[i][p][t]
                         }
-                        df.append(dato)
+                        registros.append(dato)
+                        print(dato)
 
-        self.reporte_df = pd.DataFrame(df).sort_values(['planta', 'ingrediente', 'periodo', 'costo_camion'], ascending=[True, True, True, False])
+        self.reporte_df = pd.DataFrame(registros)
+        print(self.reporte_df.columns)
+        # self.reporte_df = self.reporte_df.sort_values(['planta', 'ingrediente', 'periodo', 'costo_camion'], ascending=[True, True, True, False]).copy()
         
        
     def _generar_reporte_fase4(self):
@@ -253,7 +283,7 @@ class Fase4Model():
         df['safety_stock'] = safety_list
         df['target'] = target_list
         
-        self.reporte_df = df.copy()
+        self.reporte2_df = df.copy()
         
         
         

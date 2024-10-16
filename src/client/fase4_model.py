@@ -193,9 +193,10 @@ class Fase4Model():
                     sum_despachos = [self.Xipt[i][p][t] for i in self.Xipt.keys() if m in i and p in self.Xipt[i].keys()]
                     
                     if len(sum_despachos) > 0:
-                        if sum(self.TIpt[m][p][t].values())>0:
-                            rest = (pu.lpSum(sum_despachos) == sum(self.TIpt[m][p][t].values()), rest_name)
-                            despacho_total.append(rest)
+                        if t in self.TIpt[m][p].keys():
+                            if sum(self.TIpt[m][p][t].values())>0:
+                                rest = (pu.lpSum(sum_despachos) == sum(self.TIpt[m][p][t].values()), rest_name)
+                                despacho_total.append(rest)
             
                         
         model += pu.lpSum(fobj)
@@ -206,7 +207,14 @@ class Fase4Model():
         for rest in despacho_total:
             model += rest  
 
-        model.solve()                     
+
+        engine_cbc = pu.PULP_CBC_CMD(
+            gapRel=0.05,
+            warmStart=False,
+            # threads=cpu_count
+            )
+
+        model.solve(engine_cbc)                     
 
 
     def _generar_reporte_optimizacion(self)->pd.DataFrame:
@@ -229,11 +237,10 @@ class Fase4Model():
                             "costo_camion": self.Cipt[i][p][t]
                         }
                         registros.append(dato)
-                        print(dato)
 
         self.reporte_df = pd.DataFrame(registros)
         print(self.reporte_df.columns)
-        # self.reporte_df = self.reporte_df.sort_values(['planta', 'ingrediente', 'periodo', 'costo_camion'], ascending=[True, True, True, False]).copy()
+        self.reporte_df = self.reporte_df.sort_values(['planta', 'ingrediente', 'periodo', 'costo_camion'], ascending=[True, True, True, False]).copy()
         
        
     def _generar_reporte_fase4(self):

@@ -1,5 +1,6 @@
 import pulp as pu
 import pandas as pd
+from datetime import datetime
 
 class Fase4Model():
 
@@ -149,7 +150,7 @@ class Fase4Model():
         # Sum(i,p,t){Xipt} == TIpt
 
 
-        model = pu.LpProblem("Bios", sense=pu.LpMinimize)
+        model = pu.LpProblem(f"Bios_{datetime.now().strftime("%H:%M")}.lp", sense=pu.LpMinimize)
         
         cap_camion = self.problema['capacidad_camion']
         
@@ -195,7 +196,7 @@ class Fase4Model():
                     if len(sum_despachos) > 0:
                         if t in self.TIpt[m][p].keys():
                             if sum(self.TIpt[m][p][t].values())>0:
-                                rest = (pu.lpSum(sum_despachos) == sum(self.TIpt[m][p][t].values()), rest_name)
+                                rest = (pu.lpSum(sum_despachos) >= sum(self.TIpt[m][p][t].values()), rest_name)
                                 despacho_total.append(rest)
             
                         
@@ -213,6 +214,8 @@ class Fase4Model():
             warmStart=False,
             # threads=cpu_count
             )
+        
+        model.writeLP('model.lp')
 
         model.solve(engine_cbc)                     
 

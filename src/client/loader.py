@@ -926,7 +926,7 @@ class Loader():
                             camiones_disponibles += int(
                                 min(inventario_en_t, inventario_al_final)/self.problema['capacidad_camion'])
                             cluster = importaciones[ingrediente][puerto][operador][empresa][importacion]['cluster_despacho']
-                            if camiones_disponibles > 0 and cluster == 'bajo':
+                            if camiones_disponibles > 0 and cluster != 'alto':
                                 if ingrediente not in ingredientes_disponibles.keys():
                                     ingredientes_disponibles[ingrediente] = dict(
                                     )

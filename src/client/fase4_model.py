@@ -214,8 +214,6 @@ class Fase4Model():
             warmStart=False,
             # threads=cpu_count
             )
-        
-        model.writeLP('model.lp')
 
         model.solve(engine_cbc)                     
 
@@ -242,7 +240,6 @@ class Fase4Model():
                         registros.append(dato)
 
         self.reporte_df = pd.DataFrame(registros)
-        print(self.reporte_df.columns)
         self.reporte_df = self.reporte_df.sort_values(['planta', 'ingrediente', 'periodo', 'costo_camion'], ascending=[True, True, True, False]).copy()
         
        

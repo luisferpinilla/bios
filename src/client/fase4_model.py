@@ -150,7 +150,7 @@ class Fase4Model():
         # Sum(i,p,t){Xipt} == TIpt
 
 
-        model = pu.LpProblem(f"Bios_{datetime.now().strftime("%H:%M")}.lp", sense=pu.LpMinimize)
+        model = pu.LpProblem(f"Bios", sense=pu.LpMinimize)
         
         cap_camion = self.problema['capacidad_camion']
         

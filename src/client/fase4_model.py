@@ -210,10 +210,12 @@ class Fase4Model():
 
 
         engine_cbc = pu.PULP_CBC_CMD(
-            gapRel=0.05,
+            gapRel=0.01,
             warmStart=False,
             # threads=cpu_count
             )
+
+        engine_glpk = pu.GLPK_CMD()
 
         model.solve(engine_cbc)                     
 

@@ -16,7 +16,7 @@ st.set_page_config(layout="wide")
 
 st.button(label='call_back')
 
-st.title('Optimizador BIOS. V2.60')
+st.title('Optimizador BIOS. V2.70')
 
 if 'resultado' not in st.session_state:
 

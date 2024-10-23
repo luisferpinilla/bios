@@ -333,14 +333,15 @@ class Loader():
                             importacion_values['costos_despacho_directo'] = list(
                             )
                             importacion_values['costos_bodegaje'] = list()
+                            importacion_values['tipo_despacho'] = list()
 
                             # Obtener la última fecha de llegada de material
                             llegadas = importacion_values['llegadas']
 
                             # Verificar si la importacion tiene llegadas durante el horizonte de planeación
                             if sum(llegadas) > 0:
-                                last_arrival_index = max(
-                                    [llegadas.index(x) for x in llegadas if x > 0])
+                                last_arrival_index = [x for x in range(len(llegadas)) if llegadas[x] > 0]
+                                last_arrival_index = max(last_arrival_index)
                             else:
                                 last_arrival_index = -1
 
@@ -349,23 +350,20 @@ class Loader():
 
                                 if i in df.index and last_arrival_index >= 0:
                                     if t == self.fechas[last_arrival_index]:
-                                        importacion_values['costos_bodegaje'].append(
-                                            float(df.loc[i]['valor_kg']))
+                                        importacion_values['costos_bodegaje'].append(float(df.loc[i]['valor_kg']))
                                     else:
-                                        importacion_values['costos_bodegaje'].append(
-                                            0.0)
+                                        importacion_values['costos_bodegaje'].append(0.0)
                                 else:
-                                    importacion_values['costos_bodegaje'].append(
-                                        0.0)
+                                    importacion_values['costos_bodegaje'].append(0.0)
 
                                 i = ('directo', operador, puerto, ingrediente)
 
                                 if i in df.index and importacion_values['llegadas'][self.fechas.index(t)] > 0.0:
-                                    importacion_values['costos_despacho_directo'].append(
-                                        float(df.loc[i]['valor_kg']))
+                                    importacion_values['costos_despacho_directo'].append(float(df.loc[i]['valor_kg']))
+                                    importacion_values['tipo_despacho'].append('directo')
                                 else:
-                                    importacion_values['costos_despacho_directo'].append(
-                                        0.0)
+                                    importacion_values['costos_despacho_directo'].append(0.0)
+                                    importacion_values['tipo_despacho'].append('bodega')
 
     def _load_fletes(self):
 
@@ -594,38 +592,29 @@ class Loader():
                     for empresa, empresa_value in operador_values.items():
                         for importacion, importacion_values in empresa_value.items():
                             # Costos de almacenamiento
-                            costo_total_almacenamiento = list(self.cap_camion*(np.array(
-                                importacion_values['costo_almacenamiento']) + np.array(importacion_values['costos_bodegaje'])))
-                            costo_total_almacenamiento = [
-                                int(x) for x in costo_total_almacenamiento]
+                            costo_total_almacenamiento = list(self.cap_camion*(np.array(importacion_values['costo_almacenamiento']) + np.array(importacion_values['costos_bodegaje'])))
+                            costo_total_almacenamiento = [int(x) for x in costo_total_almacenamiento]
+                            ahorro_almacenamiento_camion = self.cap_camion*np.array(importacion_values['costo_almacenamiento'])
+                            ahorro_bodegaje_camion = self.cap_camion*np.array(importacion_values['costos_bodegaje'])
+                            
                             importacion_values['costo_almacenamiento_camion'] = costo_total_almacenamiento
-                            importacion_values['ahorro_camion'] = list(
-                                accumulate(costo_total_almacenamiento[::-1]))[::-1]
+                            importacion_values['ahorro_camion'] = list(accumulate(costo_total_almacenamiento[::-1]))[::-1]
+                            importacion_values['ahorro_almacenamiento_camion'] = list(accumulate(ahorro_almacenamiento_camion[::-1]))[::-1]
+                            importacion_values['ahorro_bodegaje_camion'] = list(accumulate(ahorro_bodegaje_camion[::-1]))[::-1]
 
                             # Costos de despacho por camion
-                            importacion_values['costo_despacho_camion'] = dict(
-                            )
+                            importacion_values['costo_despacho_camion'] = dict()
                             for planta in importacion_values['flete_camion'].keys():
-                                fletes = importacion_values['flete_camion'][planta] * np.ones(
-                                    len(self.fechas))
-                                despacho_directo = self.cap_camion * \
-                                    np.array(
-                                        importacion_values['costos_despacho_directo'])
-                                despacho_directo = [int(x)
-                                                    for x in despacho_directo]
-                                costo_intercompany = importacion_values['intercompany_camion'][planta] * np.ones(
-                                    len(self.fechas))
-                                costo_intercompany = [
-                                    int(x) for x in costo_intercompany]
-                                ahorro_almacenamiento = np.array(
-                                    importacion_values['ahorro_camion'])
-                                ahorro_almacenamiento = [
-                                    int(x) for x in ahorro_almacenamiento]
-                                costo_camion = fletes + despacho_directo + \
-                                    costo_intercompany - ahorro_almacenamiento
+                                fletes = importacion_values['flete_camion'][planta] * np.ones(len(self.fechas))
+                                despacho_directo = self.cap_camion * np.array(importacion_values['costos_despacho_directo'])
+                                despacho_directo = [int(x) for x in despacho_directo]
+                                costo_intercompany = importacion_values['intercompany_camion'][planta] * np.ones(len(self.fechas))
+                                costo_intercompany = [int(x) for x in costo_intercompany]
+                                ahorro_almacenamiento = np.array(importacion_values['ahorro_camion'])
+                                ahorro_almacenamiento = [int(x) for x in ahorro_almacenamiento]
+                                costo_camion = fletes + despacho_directo + costo_intercompany - ahorro_almacenamiento
                                 costo_camion = [int(x) for x in costo_camion]
-                                importacion_values['costo_despacho_camion'][planta] = list(
-                                    costo_camion)
+                                importacion_values['costo_despacho_camion'][planta] = list(costo_camion)
 
     def generar_variables_despacho(self):
 
@@ -1537,27 +1526,20 @@ class Loader():
                                 for t in range(periodos):
 
                                     if 'minimo' in importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta].keys():
-                                        minimo = importaciones[ingrediente][puerto][operador][
-                                            empresa][importacion]['despachos'][planta]['minimo'][t]
-                                        safety_stock = importaciones[ingrediente][puerto][operador][
-                                            empresa][importacion]['despachos'][planta]['safety_stock'][t]
-                                        target = importaciones[ingrediente][puerto][operador][
-                                            empresa][importacion]['despachos'][planta]['target'][t]
+                                        minimo = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['minimo'][t]
+                                        safety_stock = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['safety_stock'][t]
+                                        target = importaciones[ingrediente][puerto][operador][empresa][importacion]['despachos'][planta]['target'][t]
                                         camiones_despachados = minimo + safety_stock + target
                                     else:
                                         camiones_despachados = 0
-                                    flete_camion = importaciones[ingrediente][puerto][
-                                        operador][empresa][importacion]['flete_camion'][planta]
-                                    intercompany_camion = importaciones[ingrediente][puerto][
-                                        operador][empresa][importacion]['intercompany_camion'][planta]
-                                    ahorro_camion = importaciones[ingrediente][puerto][
-                                        operador][empresa][importacion]['ahorro_camion'][t]
-                                    costo_despacho_camion = importaciones[ingrediente][puerto][operador][
-                                        empresa][importacion]['costo_despacho_camion'][planta][t]
-                                    cluster_despacho = importaciones[ingrediente][puerto][operador][
-                                        empresa][importacion]['cluster_despacho'][planta][t]
-                                    costos_despacho_directo = importaciones[ingrediente][puerto][
-                                        operador][empresa][importacion]['costos_despacho_directo'][t]
+                                    flete_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['flete_camion'][planta]
+                                    intercompany_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['intercompany_camion'][planta]
+                                    costo_despacho_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['costo_despacho_camion'][planta][t]
+                                    cluster_despacho = importaciones[ingrediente][puerto][operador][empresa][importacion]['cluster_despacho'][planta][t]
+                                    costos_despacho_directo = importaciones[ingrediente][puerto][operador][empresa][importacion]['costos_despacho_directo'][t]
+                                    ahorro_almacenamiento_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['ahorro_almacenamiento_camion'][t]
+                                    ahorro_bodegaje_camion = importaciones[ingrediente][puerto][operador][empresa][importacion]['ahorro_bodegaje_camion'][t]
+                                    tipo_despacho = importaciones[ingrediente][puerto][operador][empresa][importacion]['tipo_despacho'][t]
                                     data = {
                                         "Empresa": empresa,
                                         "Puerto": puerto,
@@ -1573,10 +1555,12 @@ class Loader():
                                         "Despacho para Safety Stock": safety_stock,
                                         "Depsacho hasta Target": target,
                                         "intercompany_camion": intercompany_camion,
-                                        "ahorro_camion_almacenamiento": ahorro_camion,
                                         "costo_despacho_camion": costo_despacho_camion,
                                         "cluster_despacho": cluster_despacho,
-                                        "costos_despacho_directo": costos_despacho_directo
+                                        "costos_despacho_directo": self.cap_camion* costos_despacho_directo,
+                                        "ahorro_almacenamiento_camion": ahorro_almacenamiento_camion,
+                                        "ahorro_bodegaje_camion": ahorro_bodegaje_camion,
+                                        "tipo_despacho":tipo_despacho
                                     }
 
                                     despachos_df.append(data)

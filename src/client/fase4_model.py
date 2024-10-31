@@ -210,7 +210,8 @@ class Fase4Model():
 
 
         engine_cbc = pu.PULP_CBC_CMD(
-            gapRel=0.0001,
+            gapRel=0.00005,
+            timeLimit=60*5,
             # gapAbs=5000000,
             warmStart=False,
             # threads=cpu_count
